@@ -128,6 +128,25 @@ export default function NewApplication() {
         }
       }
 
+      // Save the application to the database with requested_outputs
+      const { data, error } = await supabase
+        .from('applications')
+        .insert([
+          {
+            user_id: user.id,
+            resume_id: selectedResume,
+            job_description: jobDescription,
+            generated_content: results,
+            requested_outputs: requestedOutputs, // Add this field
+            created_at: new Date().toISOString()
+          }
+        ]);
+
+      if (error) {
+        console.error('Error saving application:', error);
+        alert('Generated content successfully but failed to save to history');
+      }
+
       setResults(results);
     } catch (error) {
       console.error('Generation error:', error);
