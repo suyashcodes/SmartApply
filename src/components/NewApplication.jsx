@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { FileText, Sparkles, Copy, Download } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import pdfjsLib from '../lib/pdf.js';
 export default function NewApplication() {
   const [resumes, setResumes] = useState([]);
   const [selectedResume, setSelectedResume] = useState('');
@@ -72,26 +73,45 @@ export default function NewApplication() {
     setLoading(true);
 
     try {
-      const selectedResumeData = resumes.find(r => r.id.toString() === selectedResume);
+      const selectedResumeData = resumes.find(r => r.id === selectedResume);
       
       if (!selectedResumeData) {
-        console.error('Selected resume data not found');
-        alert('Error: Could not find the selected resume data');
-        return;
+        throw new Error('Selected resume data not found');
       }
-      console.log(selectedResumeData);
+
+      // Fetch the PDF file
+      const response = await fetch(selectedResumeData.file_url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch PDF file');
+      }
       
+      // Get the PDF file as ArrayBuffer
+      const pdfData = await response.arrayBuffer();
+      
+      // Load the PDF document
+      const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+      
+      // Extract text from all pages
+      let resumeContent = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        resumeContent += pageText + '\n';
+      }
+
+      // Now use resumeContent instead of selectedResumeData.content
       const results = {};
 
       for (const output of requestedOutputs) {
         let prompt = '';
         
         if (output === 'resume_suggestions') {
-          prompt = `Based on this job description:\n${jobDescription}\n\nAnd this resume:\n${selectedResumeData.content}\n\nProvide specific suggestions to improve the resume to better match the job requirements. Focus on skills alignment, achievements, and keywords.`;
+          prompt = `Based on this job description:\n${jobDescription}\n\nAnd this resume:\n${resumeContent}\n\nProvide specific suggestions to improve the resume to better match the job requirements. Focus on skills alignment, achievements, and keywords.`;
         } else if (output === 'cover_letter') {
-          prompt = `Write a professional cover letter for this job description:\n${jobDescription}\n\nUsing information from this resume:\n${selectedResumeData.content}\n\nThe cover letter should be personalized and include the following:\n1. Extract and use the candidate's full name and contact details from the resume\n2. If possible, research and include the hiring manager's name from the job description\n3. Highlight relevant experience and skills that match the job requirements\n4. Maintain a professional tone while showing genuine interest\n5. End with a clear call to action, dont include things like [Your Name] menton the personal details from resume data`;
+          prompt = `Write a professional cover letter for this job description:\n${jobDescription}\n\nUsing information from this resume:\n${resumeContent}\n\nThe cover letter should be personalized and include the following:\n1. Extract and use the candidate's full name and contact details from the resume\n2. If possible, research and include the hiring manager's name from the job description\n3. Highlight relevant experience and skills that match the job requirements\n4. Maintain a professional tone while showing genuine interest\n5. End with a clear call to action`;
         } else if (output === 'cold_email') {
-          prompt = `Write a concise cold email to the hiring manager for this job description:\n${jobDescription}\n\nUsing key points from this resume:\n${selectedResumeData.content}\n\nThe email should:\n1. Use the candidate's actual name and relevant contact details from the resume\n2. If the hiring manager's name is in the job description, address them directly\n3. Be professional yet personable\n4. Highlight 2-3 most relevant qualifications that match the job\n5. Include a specific call to action for next steps`;
+          prompt = `Write a concise cold email to the hiring manager for this job description:\n${jobDescription}\n\nUsing key points from this resume:\n${resumeContent}\n\nThe email should be professional, highlight key matching qualifications, and request a conversation.`;
         }
 
         try {
@@ -99,7 +119,6 @@ export default function NewApplication() {
           const response = await result.response;
           results[output] = response.text();
 
-          // Add a small delay between requests if needed
           if (requestedOutputs.length > 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
           }
