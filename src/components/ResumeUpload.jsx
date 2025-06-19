@@ -1,27 +1,31 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
+import { useState } from 'react';
+import { useResumes } from '../hooks/useResumes';
 import { Upload, FileText, Trash2, Download, Eye } from 'lucide-react';
 
 export default function ResumeUpload() {
-  const [resumes, setResumes] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const { user } = useAuth();
+  const { resumes, uploadResume, deleteResume } = useResumes();
 
-  useEffect(() => {
-    fetchResumes();
-  }, []);
+  const handleUpload = async (file) => {
+    setUploading(true);
+    try {
+      await uploadResume(file);
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
-  const fetchResumes = async () => {
-    const { data, error } = await supabase
-      .from('resumes')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('uploaded_at', { ascending: false });
-
-    if (!error) {
-      setResumes(data || []);
+  const handleDelete = async (resumeId, fileUrl) => {
+    if (!confirm('Are you sure you want to delete this resume?')) return;
+    
+    try {
+      await deleteResume(resumeId, fileUrl);
+      alert('Resume deleted successfully');
+    } catch (error) {
+      alert('Failed to delete resume');
     }
   };
 
@@ -41,88 +45,13 @@ export default function ResumeUpload() {
     setDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      uploadFile(e.dataTransfer.files[0]);
+      handleUpload(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
-      uploadFile(e.target.files[0]);
-    }
-  };
-
-  const uploadFile = async (file) => {
-    if (!file.type.includes('pdf')) {
-      alert('Please upload only PDF files');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB');
-      return;
-    }
-
-    setUploading(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('resumes')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('resumes')
-        .getPublicUrl(fileName);
-
-      const { error: dbError } = await supabase
-        .from('resumes')
-        .insert({
-          user_id: user.id,
-          file_name: file.name,
-          file_url: urlData.publicUrl,
-        });
-
-      if (dbError) throw dbError;
-
-      fetchResumes();
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Failed to upload file');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const deleteResume = async (resumeId, fileUrl) => {
-    if (!confirm('Are you sure you want to delete this resume?')) {
-      return;
-    }
-
-    try {
-      // Extract file path from URL
-      const filePath = fileUrl.split('/').slice(-2).join('/');
-      
-      // Delete from storage
-      await supabase.storage
-        .from('resumes')
-        .remove([filePath]);
-
-      // Delete from database
-      const { error } = await supabase
-        .from('resumes')
-        .delete()
-        .eq('id', resumeId);
-
-      if (!error) {
-        fetchResumes();
-      }
-    } catch (error) {
-      console.error('Delete error:', error);
-      alert('Failed to delete resume');
+      handleUpload(e.target.files[0]);
     }
   };
 
@@ -227,12 +156,15 @@ export default function ResumeUpload() {
                       <Download className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => deleteResume(resume.id, resume.file_url)}
+                      onClick={() => handleDelete(resume.id, resume.storage_path)}
                       className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                       title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    {/* <p className='text-[12px]'>{resume.id}</p> */}
+                    {/* <p className='text-[12px]'>{resume.file_url}</p> */}
+                    {/* <p className='text-[12px]'>{resume.storage_path}</p> */}
                   </div>
                 </div>
               ))}

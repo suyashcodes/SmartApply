@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { User, Key, Trash2, Shield } from 'lucide-react';
+import { supabase } from '../lib/supabase';  // Add this line
 
 export default function Settings() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -18,30 +19,58 @@ export default function Settings() {
       setMessage({ type: 'error', text: 'New passwords do not match' });
       return;
     }
-
+  
     if (newPassword.length < 6) {
       setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
       return;
     }
-
+  
     setLoading(true);
     setMessage({ type: '', text: '' });
-
+  
     try {
-      // Note: In a real implementation, you would validate the current password
-      // and update it using Supabase auth.updateUser()
-      
-      // Simulated success for demo
-      setTimeout(() => {
-        setMessage({ type: 'success', text: 'Password updated successfully' });
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
+      // Verify current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword
+      });
+  
+      if (signInError) {
+        setMessage({ type: 'error', text: 'Current password is incorrect' });
         setLoading(false);
-      }, 1000);
+        return;
+      }
+  
+      // Update to new password
+      const { data, error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+  
+      if (updateError) {
+        console.error('Update error details:', updateError);
+        throw updateError;
+      }
+  
+      setMessage({ 
+        type: 'success', 
+        text: 'Password updated successfully! Please sign in again with your new password.' 
+      });
+      
+      // Clear form
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // Optional: Sign out user to force re-authentication
+      await signOut();
       
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to update password' });
+      console.error('Password update failed:', error);
+      setMessage({ 
+        type: 'error', 
+        text: error.message || 'Failed to update password. Please try again.' 
+      });
+    } finally {
       setLoading(false);
     }
   };

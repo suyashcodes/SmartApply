@@ -3,6 +3,10 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import LoadingSpinner from './components/LoadingSpinner';
+import { ResumeProvider } from './hooks/useResumes';
+import { JobOpportunitiesProvider } from './hooks/useJobOpportunities';
+import { AppliedJobsProvider } from './hooks/useAppliedJobs';
+import { AssignmentsProvider } from './hooks/useAssignments';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -32,9 +36,15 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-gray-50">
-        <AppRoutes />
-      </div>
+      <ResumeProvider>
+        <JobOpportunitiesProvider>
+          <AppliedJobsProvider>
+            <AssignmentsProvider>
+              <AppRoutes />
+            </AssignmentsProvider>
+          </AppliedJobsProvider>
+        </JobOpportunitiesProvider>
+      </ResumeProvider>
     </AuthProvider>
   );
 }
