@@ -8,6 +8,8 @@ import Settings from '../components/Settings';
 import JobOpportunities from '../components/JobOpportunities';
 import AppliedJobs from '../components/AppliedJobs';
 import Assignments from '../components/Assignments';
+import Jobs from '../components/Jobs';
+import UserProfile from '../components/UserProfile';
 
 export default function Dashboard() {
   return (
@@ -17,11 +19,13 @@ export default function Dashboard() {
         <Routes>
           <Route path="/" element={<DashboardHome />} />
           <Route path="/upload" element={<ResumeUpload />} />
+          <Route path="/jobs" element={<Jobs />} />
           <Route path="/opportunities" element={<JobOpportunities />} />
           <Route path="/applied" element={<AppliedJobs />} />
           <Route path="/assignments" element={<Assignments />} />
           <Route path="/new-application" element={<NewApplication />} />
           <Route path="/history" element={<ApplicationHistory />} />
+          <Route path="/profile" element={<UserProfile />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>

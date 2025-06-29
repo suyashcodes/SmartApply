@@ -7,19 +7,23 @@ import {
   History, 
   Settings, 
   LogOut,
-  Zap
+  Zap,
+  Briefcase,
+  CheckSquare,
+  User,
+  Search
 } from 'lucide-react';
-import { Briefcase } from 'lucide-react';
-import { CheckSquare } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Upload Resume', href: '/dashboard/upload', icon: Upload },
   { name: 'New Application', href: '/dashboard/new-application', icon: FileText },
+  { name: 'Job Search', href: '/dashboard/jobs', icon: Search },
   { name: 'Opportunities', href: '/dashboard/opportunities', icon: Briefcase },
   { name: 'Applied Jobs', href: '/dashboard/applied', icon: CheckSquare },
   { name: 'Assignments', href: '/dashboard/assignments', icon: FileText },
   { name: 'History', href: '/dashboard/history', icon: History },
+  { name: 'Profile', href: '/dashboard/profile', icon: User },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings }
 ];
 
