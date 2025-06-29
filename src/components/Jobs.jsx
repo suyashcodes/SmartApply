@@ -40,6 +40,7 @@ export default function Jobs() {
   const [jobMatches, setJobMatches] = useState({});
   const [userProfile, setUserProfile] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
+  const [hoveredJob, setHoveredJob] = useState(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -282,6 +283,141 @@ export default function Jobs() {
     );
   };
 
+  // Hover Metrics Component
+  const HoverMetrics = ({ match, job }) => {
+    if (!match) return null;
+
+    return (
+      <div className="absolute top-0 left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Why This Job Is A Match</h3>
+          <div className="flex items-center space-x-2">
+            <div className="relative w-12 h-12">
+              <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#E5E7EB"
+                  strokeWidth="3"
+                />
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke={match.overall_score >= 80 ? "#10B981" : match.overall_score >= 60 ? "#3B82F6" : match.overall_score >= 40 ? "#F59E0B" : "#EF4444"}
+                  strokeWidth="3"
+                  strokeDasharray={`${match.overall_score}, 100`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-gray-900">{match.overall_score}%</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-gray-900">{getMatchLabel(match.overall_score)}</p>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-gray-600 text-sm mb-4">
+          {job.company} is seeking a {job.title}. They are looking for someone with your background...
+        </p>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="relative w-16 h-16 mx-auto mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#E5E7EB"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#10B981"
+                  strokeWidth="2"
+                  strokeDasharray={`${match.experience_match}, 100`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold">{match.experience_match}%</span>
+              </div>
+            </div>
+            <p className="text-xs font-medium text-gray-700">Experience Level</p>
+          </div>
+
+          <div className="text-center">
+            <div className="relative w-16 h-16 mx-auto mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#E5E7EB"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#10B981"
+                  strokeWidth="2"
+                  strokeDasharray={`${match.skills_match}, 100`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold">{match.skills_match}%</span>
+              </div>
+            </div>
+            <p className="text-xs font-medium text-gray-700">Skills</p>
+          </div>
+
+          <div className="text-center">
+            <div className="relative w-16 h-16 mx-auto mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#E5E7EB"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  fill="none"
+                  stroke="#10B981"
+                  strokeWidth="2"
+                  strokeDasharray={`${match.industry_match}, 100`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold">{match.industry_match}%</span>
+              </div>
+            </div>
+            <p className="text-xs font-medium text-gray-700">Industry Experience</p>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+          <span className="text-sm text-gray-600">{job.applicant_count}+ applicants</span>
+          <div className="flex space-x-2">
+            <button className="p-2 text-gray-400 hover:text-gray-600 rounded-full">
+              <X className="h-4 w-4" />
+            </button>
+            <button className="p-2 text-gray-400 hover:text-red-600 rounded-full">
+              <BookmarkCheck className="h-4 w-4" />
+            </button>
+            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <Sparkles className="h-4 w-4 mr-1 inline" />
+              ASK ORION
+            </button>
+            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
+              APPLY NOW
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -306,17 +442,17 @@ export default function Jobs() {
                   onClick={() => setSelectedJob(null)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  <ArrowLeft className="h-5 w-5" />
+                  <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h1 className="text-xl font-semibold text-gray-900">{selectedJob.title}</h1>
-                  <p className="text-gray-600">{selectedJob.company}</p>
+                  <p className="text-sm text-gray-600">{selectedJob.applicant_count} applicants</p>
+                  <p className="text-sm text-gray-500">Posted by Agency</p>
                 </div>
               </div>
               
               <div className="flex items-center space-x-3">
                 <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                  <Share className="h-5 w-5 text-gray-600" />
+                  <X className="h-5 w-5 text-gray-600" />
                 </button>
                 <button
                   onClick={() => toggleSaveJob(selectedJob.id)}
@@ -328,14 +464,12 @@ export default function Jobs() {
                     <Bookmark className="h-5 w-5 text-gray-600" />
                   )}
                 </button>
-                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                  <Flag className="h-5 w-5 text-gray-600" />
-                </button>
                 <button
                   onClick={() => applyToJob(selectedJob.id)}
-                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center"
                 >
-                  Apply Now
+                  APPLY NOW
+                  <ExternalLink className="h-4 w-4 ml-2" />
                 </button>
               </div>
             </div>
@@ -346,101 +480,114 @@ export default function Jobs() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Job Details */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-start space-x-4 mb-6">
-                  {selectedJob.company_logo ? (
-                    <img 
-                      src={selectedJob.company_logo} 
-                      alt={selectedJob.company}
-                      className="w-16 h-16 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <Building className="h-8 w-8 text-gray-400" />
-                    </div>
-                  )}
-                  
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedJob.title}</h2>
-                    <p className="text-lg text-gray-700 font-medium mb-4">{selectedJob.company}</p>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-2" />
-                        <span>{selectedJob.location}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-2" />
-                        <span className="capitalize">{selectedJob.employment_type.replace('_', ' ')}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 mr-2" />
-                        <span>{formatSalary(selectedJob.salary_min, selectedJob.salary_max, selectedJob.currency)}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Users className="h-4 w-4 mr-2" />
-                        <span>{selectedJob.applicant_count} applicants</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              {/* Navigation Tabs */}
+              <div className="flex space-x-8 border-b border-gray-200">
+                <button className="pb-2 border-b-2 border-black text-black font-medium">
+                  Overview
+                </button>
+                <button className="pb-2 text-gray-500 hover:text-gray-700">
+                  Company
+                </button>
+              </div>
 
-                {/* Match Insights Banner */}
-                {match && (
-                  <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Sparkles className="h-5 w-5 text-green-600" />
-                        <div>
-                          <h3 className="font-medium text-gray-900">Maximize your interview chances</h3>
-                          <p className="text-sm text-gray-600">This role matches {match.overall_score}% of your profile</p>
-                        </div>
-                      </div>
-                      <button className="bg-white text-green-700 px-4 py-2 rounded-lg border border-green-200 hover:bg-green-50 transition-colors text-sm font-medium">
-                        <Sparkles className="h-4 w-4 mr-1 inline" />
-                        Generate Custom Resume
-                      </button>
-                    </div>
+              {/* Company Info */}
+              <div className="flex items-center space-x-4 mb-6">
+                {selectedJob.company_logo ? (
+                  <img 
+                    src={selectedJob.company_logo} 
+                    alt={selectedJob.company}
+                    className="w-12 h-12 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                    M
                   </div>
                 )}
-
-                {/* Job Description */}
-                <div className="prose max-w-none">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">About this role</h3>
-                  <p className="text-gray-700 leading-relaxed mb-6">{selectedJob.description}</p>
-                  
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Requirements</h3>
-                  <p className="text-gray-700 leading-relaxed">{selectedJob.requirements}</p>
+                <div>
+                  <h3 className="font-medium text-gray-900">{selectedJob.company}</h3>
+                  <p className="text-sm text-gray-500">12 hours ago</p>
                 </div>
+              </div>
 
-                {/* Skills Section */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Skills & Technologies</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {renderSkillBadges(selectedJob.required_skills, 'required')}
-                    {renderSkillBadges(selectedJob.nice_to_have_skills, 'nice')}
+              {/* Job Title */}
+              <h1 className="text-3xl font-bold text-gray-900 mb-6">{selectedJob.title}</h1>
+
+              {/* Job Details Grid */}
+              <div className="grid grid-cols-2 gap-6 mb-8">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-700">{selectedJob.location}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Users className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-700">Contact</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Building className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-700 capitalize">{selectedJob.work_type}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-700 capitalize">{selectedJob.experience_level} Level</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-700">{formatSalary(selectedJob.salary_min, selectedJob.salary_max, selectedJob.currency)}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5 text-gray-400" />
+                  <span className="text-gray-700">{selectedJob.required_experience_years || 2}+ years exp</span>
+                </div>
+              </div>
+
+              {/* Match Insights Banner */}
+              {match && (
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Sparkles className="h-5 w-5 text-green-600" />
+                      <div>
+                        <h3 className="font-medium text-gray-900">Maximize your interview chances</h3>
+                      </div>
+                    </div>
+                    <button className="bg-white text-green-700 px-4 py-2 rounded-lg border border-green-200 hover:bg-green-50 transition-colors text-sm font-medium flex items-center">
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Generate Custom Resume
+                    </button>
                   </div>
                 </div>
+              )}
 
-                {/* Company Tags */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                      {selectedJob.industry}
+              {/* Job Description */}
+              <div className="prose max-w-none">
+                <p className="text-gray-700 leading-relaxed mb-6">{selectedJob.description}</p>
+                <p className="text-gray-700 leading-relaxed">{selectedJob.requirements}</p>
+              </div>
+
+              {/* Skills Section */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="flex flex-wrap gap-2">
+                  {selectedJob.required_skills?.slice(0, 4).map((skill, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                    >
+                      {skill.name}
                     </span>
-                    <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                      {selectedJob.experience_level}
-                    </span>
-                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                      {selectedJob.work_type}
-                    </span>
-                    {selectedJob.department && (
-                      <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                        {selectedJob.department}
-                      </span>
-                    )}
+                  ))}
+                </div>
+              </div>
+
+              {/* Hiring Manager */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-gray-900">Hiring Manager</h3>
+                    <p className="text-gray-600">Soumi De</p>
                   </div>
+                  <button className="p-2 text-gray-400 hover:text-blue-600">
+                    <ExternalLink className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -472,79 +619,97 @@ export default function Jobs() {
                       </div>
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">{getMatchLabel(match.overall_score)}</h3>
-                    <p className="text-sm text-gray-600">Based on your profile</p>
                   </div>
 
-                  {/* Detailed Metrics */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-3 h-3 rounded-full ${match.experience_match >= 70 ? 'bg-green-500' : match.experience_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                        <span className="text-sm font-medium text-gray-700">Experience Level</span>
+                  {/* Individual Metrics */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="relative w-16 h-16 mx-auto mb-2">
+                        <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#E5E7EB"
+                            strokeWidth="2"
+                          />
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#10B981"
+                            strokeWidth="2"
+                            strokeDasharray={`${match.experience_match}, 100`}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-sm font-bold">{match.experience_match}%</span>
+                        </div>
                       </div>
-                      <span className={`text-sm font-semibold ${getMatchColor(match.experience_match)}`}>
-                        {match.experience_match}%
-                      </span>
+                      <p className="text-xs font-medium text-gray-700">Exp. Level</p>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-3 h-3 rounded-full ${match.skills_match >= 70 ? 'bg-green-500' : match.skills_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                        <span className="text-sm font-medium text-gray-700">Skills</span>
+                    <div className="text-center">
+                      <div className="relative w-16 h-16 mx-auto mb-2">
+                        <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#E5E7EB"
+                            strokeWidth="2"
+                          />
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#10B981"
+                            strokeWidth="2"
+                            strokeDasharray={`${match.skills_match}, 100`}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-sm font-bold">{match.skills_match}%</span>
+                        </div>
                       </div>
-                      <span className={`text-sm font-semibold ${getMatchColor(match.skills_match)}`}>
-                        {match.skills_match}%
-                      </span>
+                      <p className="text-xs font-medium text-gray-700">Skill</p>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-3 h-3 rounded-full ${match.industry_match >= 70 ? 'bg-green-500' : match.industry_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                        <span className="text-sm font-medium text-gray-700">Industry Experience</span>
+                    <div className="text-center">
+                      <div className="relative w-16 h-16 mx-auto mb-2">
+                        <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#E5E7EB"
+                            strokeWidth="2"
+                          />
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#10B981"
+                            strokeWidth="2"
+                            strokeDasharray={`${match.industry_match}, 100`}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-sm font-bold">{match.industry_match}%</span>
+                        </div>
                       </div>
-                      <span className={`text-sm font-semibold ${getMatchColor(match.industry_match)}`}>
-                        {match.industry_match}%
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-3 h-3 rounded-full ${match.title_match >= 70 ? 'bg-green-500' : match.title_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                        <span className="text-sm font-medium text-gray-700">Role Alignment</span>
-                      </div>
-                      <span className={`text-sm font-semibold ${getMatchColor(match.title_match)}`}>
-                        {match.title_match}%
-                      </span>
+                      <p className="text-xs font-medium text-gray-700">Industry Exp.</p>
                     </div>
                   </div>
-
-                  {match.overall_score >= 70 && (
-                    <div className="mt-6 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm font-medium text-green-800">Growth Opportunities</span>
-                      </div>
-                      <p className="text-xs text-green-700 mt-1">
-                        This role aligns well with your career trajectory
-                      </p>
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* Quick Actions */}
+              {/* Action Buttons */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
                 <div className="space-y-3">
                   <button
                     onClick={() => applyToJob(selectedJob.id)}
-                    className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                    className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
                   >
                     Apply Now
                   </button>
                   <button
                     onClick={() => toggleSaveJob(selectedJob.id)}
-                    className={`w-full py-2 px-4 rounded-lg transition-colors font-medium border ${
+                    className={`w-full py-3 px-4 rounded-lg transition-colors font-medium border ${
                       isSaved 
                         ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -552,38 +717,6 @@ export default function Jobs() {
                   >
                     {isSaved ? 'Saved' : 'Save Job'}
                   </button>
-                  <button className="w-full bg-white text-gray-700 py-2 px-4 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors font-medium">
-                    View Company Profile
-                  </button>
-                </div>
-              </div>
-
-              {/* Job Details */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Job Details</h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Posted</span>
-                    <span className="text-gray-900">{new Date(selectedJob.posted_date).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Applicants</span>
-                    <span className="text-gray-900">{selectedJob.applicant_count}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Job Type</span>
-                    <span className="text-gray-900 capitalize">{selectedJob.employment_type.replace('_', ' ')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Experience</span>
-                    <span className="text-gray-900 capitalize">{selectedJob.experience_level}</span>
-                  </div>
-                  {selectedJob.application_deadline && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Deadline</span>
-                      <span className="text-gray-900">{new Date(selectedJob.application_deadline).toLocaleDateString()}</span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -668,7 +801,17 @@ export default function Jobs() {
             const isSaved = savedJobs.has(job.id);
             
             return (
-              <div key={job.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div 
+                key={job.id} 
+                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow relative"
+                onMouseEnter={() => setHoveredJob(job.id)}
+                onMouseLeave={() => setHoveredJob(null)}
+              >
+                {/* Hover Metrics Overlay */}
+                {hoveredJob === job.id && match && (
+                  <HoverMetrics match={match} job={job} />
+                )}
+
                 <div className="flex justify-between items-start">
                   {/* Job Info */}
                   <div className="flex-1">
