@@ -1,11 +1,30 @@
-import { useState } from 'react';
-import { Download, Eye, FileText, Loader2, Star, Award, Users, Code } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, Eye, FileText, Loader2, Star, Award, Users, Code, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function ResumeBuilder() {
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState('');
+  const [serverStatus, setServerStatus] = useState('checking');
+
+  // Check server status on component mount
+  useEffect(() => {
+    checkServerStatus();
+  }, []);
+
+  const checkServerStatus = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/health');
+      if (response.ok) {
+        setServerStatus('online');
+      } else {
+        setServerStatus('offline');
+      }
+    } catch (error) {
+      setServerStatus('offline');
+    }
+  };
 
   // The exact LaTeX code you provided
   const latexCode = `\\documentclass[a4paper]{article} % Set document class
@@ -382,120 +401,32 @@ export default function ResumeBuilder() {
     setError('');
     
     try {
-      // Try multiple LaTeX compilation services
-      const services = [
-        'https://latex.ytotech.com/builds/sync',
-        'https://texlive.net/cgi-bin/latexcgi',
-        'https://latexbase.com/api/v1/compile'
-      ];
+      console.log('Sending LaTeX code to backend for compilation...');
+      
+      const response = await fetch('http://localhost:3001/api/compile-latex', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          latexCode: latexCode,
+          filename: 'Suyash_Dashputre_Resume'
+        })
+      });
 
-      let pdfBlob = null;
-      let lastError = null;
-
-      // Try the first service (latex.ytotech.com)
-      try {
-        const response = await fetch('https://latex.ytotech.com/builds/sync', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            compiler: 'pdflatex',
-            resources: [
-              {
-                main: true,
-                file: 'main.tex',
-                content: latexCode
-              }
-            ]
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.pdf) {
-            // Convert base64 to blob
-            const binaryString = atob(result.pdf);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-            }
-            pdfBlob = new Blob([bytes], { type: 'application/pdf' });
-          }
-        }
-      } catch (err) {
-        lastError = err;
-        console.log('First service failed, trying alternative...');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
 
-      // If first service failed, try alternative approach with Overleaf API
-      if (!pdfBlob) {
-        try {
-          const formData = new FormData();
-          formData.append('filecontents[]', latexCode);
-          formData.append('filename[]', 'main.tex');
-          formData.append('output', 'pdf');
-          formData.append('command', 'pdflatex');
-
-          const response = await fetch('https://latexonline.cc/compile', {
-            method: 'POST',
-            body: formData,
-            mode: 'cors'
-          });
-
-          if (response.ok) {
-            pdfBlob = await response.blob();
-          }
-        } catch (err) {
-          lastError = err;
-          console.log('Second service failed, trying local compilation...');
-        }
-      }
-
-      // If all external services fail, create a fallback PDF with the LaTeX code
-      if (!pdfBlob) {
-        // Create a simple PDF showing the LaTeX code
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 595; // A4 width in points
-        canvas.height = 842; // A4 height in points
-        
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = 'black';
-        ctx.font = '12px monospace';
-        
-        // Add title
-        ctx.font = 'bold 16px Arial';
-        ctx.fillText('LaTeX Resume - Compilation Preview', 50, 50);
-        
-        ctx.font = '12px Arial';
-        ctx.fillText('Note: This is a preview. The actual LaTeX compilation will produce a professional PDF.', 50, 80);
-        
-        // Add some sample content
-        ctx.fillText('Suyash Dashputre', 50, 120);
-        ctx.fillText('Full-Stack Developer', 50, 140);
-        ctx.fillText('Pune, Maharashtra, India | suyashdashputre@gmail.com', 50, 160);
-        
-        ctx.fillText('SUMMARY', 50, 200);
-        ctx.fillText('Full-Stack Developer with hands-on experience in building scalable web applications...', 50, 220);
-        
-        ctx.fillText('EXPERIENCE', 50, 260);
-        ctx.fillText('SDE Intern, Aled Technologies - May 2025 - Present', 50, 280);
-        
-        // Convert canvas to blob
-        return new Promise((resolve) => {
-          canvas.toBlob((blob) => {
-            resolve(blob);
-          }, 'application/pdf');
-        });
-      }
-
+      // Get PDF blob from response
+      const pdfBlob = await response.blob();
+      console.log('PDF compilation successful, size:', pdfBlob.size, 'bytes');
+      
       return pdfBlob;
     } catch (error) {
       console.error('Error compiling LaTeX:', error);
-      setError('Failed to compile LaTeX. Please try again.');
+      setError(`Compilation failed: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);
@@ -533,19 +464,63 @@ export default function ResumeBuilder() {
     }
   };
 
+  const ServerStatusIndicator = () => {
+    const statusConfig = {
+      checking: { icon: Loader2, color: 'text-yellow-600', bg: 'bg-yellow-50', text: 'Checking server...' },
+      online: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', text: 'LaTeX server online' },
+      offline: { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', text: 'LaTeX server offline' }
+    };
+
+    const config = statusConfig[serverStatus];
+    const Icon = config.icon;
+
+    return (
+      <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${config.bg}`}>
+        <Icon className={`h-4 w-4 ${config.color} ${serverStatus === 'checking' ? 'animate-spin' : ''}`} />
+        <span className={`text-sm font-medium ${config.color}`}>{config.text}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Resume Builder</h1>
-        <p className="text-gray-600">Create professional resumes with LaTeX compilation</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Resume Builder</h1>
+            <p className="text-gray-600">Create professional resumes with real LaTeX compilation</p>
+          </div>
+          <ServerStatusIndicator />
+        </div>
       </div>
+
+      {/* Server Offline Warning */}
+      {serverStatus === 'offline' && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <AlertCircle className="h-5 w-5 text-red-600 mr-3 mt-0.5" />
+            <div>
+              <h3 className="text-red-800 font-medium">LaTeX Server Offline</h3>
+              <p className="text-red-700 text-sm mt-1">
+                The LaTeX compilation server is not running. Please start it with:
+              </p>
+              <code className="block bg-red-100 text-red-800 p-2 rounded mt-2 text-sm">
+                npm run server
+              </code>
+              <p className="text-red-700 text-sm mt-2">
+                Or run both frontend and backend together with: <code className="bg-red-100 px-1 rounded">npm run dev:full</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center">
-            <div className="text-red-600 mr-2">⚠️</div>
+            <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
             <div className="text-red-700">{error}</div>
           </div>
         </div>
@@ -561,15 +536,15 @@ export default function ResumeBuilder() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Professional LaTeX Template</h3>
-                <p className="text-sm text-gray-600">High-quality PDF output with LaTeX compilation</p>
+                <p className="text-sm text-gray-600">Real LaTeX compilation with Node.js backend</p>
               </div>
             </div>
             
             <div className="flex space-x-3">
               <button
                 onClick={handlePreview}
-                disabled={loading}
-                className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                disabled={loading || serverStatus !== 'online'}
+                className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -581,8 +556,8 @@ export default function ResumeBuilder() {
               
               <button
                 onClick={handleDownload}
-                disabled={loading}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                disabled={loading || serverStatus !== 'online'}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -606,7 +581,7 @@ export default function ResumeBuilder() {
               </pre>
             </div>
             <p className="text-sm text-gray-600 mt-2">
-              This LaTeX code will be compiled to generate a professional PDF resume.
+              This LaTeX code will be compiled by the Node.js backend using pdflatex to generate a professional PDF resume.
             </p>
           </div>
 
@@ -691,44 +666,71 @@ export default function ResumeBuilder() {
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
               <Award className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-green-700 font-semibold text-sm">LaTeX Powered</div>
-              <div className="text-xs text-gray-600 mt-1">High-quality PDF output</div>
+              <div className="text-green-700 font-semibold text-sm">Real LaTeX Compilation</div>
+              <div className="text-xs text-gray-600 mt-1">Backend Node.js + pdflatex</div>
             </div>
             
             <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
               <Star className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-blue-700 font-semibold text-sm">Professional Design</div>
-              <div className="text-xs text-gray-600 mt-1">Clean and modern layout</div>
+              <div className="text-blue-700 font-semibold text-sm">Professional Quality</div>
+              <div className="text-xs text-gray-600 mt-1">LaTeX typesetting excellence</div>
             </div>
             
             <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
               <Users className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-              <div className="text-purple-700 font-semibold text-sm">ATS Friendly</div>
-              <div className="text-xs text-gray-600 mt-1">Optimized for tracking systems</div>
+              <div className="text-purple-700 font-semibold text-sm">ATS Optimized</div>
+              <div className="text-xs text-gray-600 mt-1">Machine-readable PDF output</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Backend Setup Instructions */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">🔧 Backend Setup</h3>
+        <div className="space-y-3 text-sm">
+          <div>
+            <h4 className="font-medium text-gray-900">1. Install LaTeX (Required)</h4>
+            <div className="bg-white rounded p-3 mt-1 font-mono text-xs">
+              <div className="text-gray-600"># macOS</div>
+              <div>brew install --cask mactex</div>
+              <div className="text-gray-600 mt-2"># Ubuntu/Debian</div>
+              <div>sudo apt-get install texlive-full</div>
+              <div className="text-gray-600 mt-2"># Windows</div>
+              <div>Download from https://miktex.org/</div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 className="font-medium text-gray-900">2. Start Backend Server</h4>
+            <div className="bg-white rounded p-3 mt-1 font-mono text-xs">
+              <div>npm run server</div>
+              <div className="text-gray-600"># Or run both frontend and backend:</div>
+              <div>npm run dev:full</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Coming Soon Features */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">🚀 Coming Soon</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-gray-700">Dynamic content from your profile</span>
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-gray-700">Dynamic content from user profile</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
             <span className="text-gray-700">Multiple LaTeX templates</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-gray-700">Custom styling options</span>
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-gray-700">Real-time LaTeX editor</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-gray-700">AI-powered content suggestions</span>
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-gray-700">AI-powered content generation</span>
           </div>
         </div>
       </div>
@@ -738,7 +740,7 @@ export default function ResumeBuilder() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">LaTeX Resume Preview</h3>
+              <h3 className="text-lg font-semibold text-gray-900">LaTeX Compiled Resume</h3>
               <div className="flex space-x-2">
                 <button
                   onClick={handleDownload}
@@ -760,7 +762,7 @@ export default function ResumeBuilder() {
               <iframe
                 src={previewUrl}
                 className="w-full h-full border border-gray-300 rounded-lg"
-                title="LaTeX Resume Preview"
+                title="LaTeX Compiled Resume"
               />
             </div>
           </div>
