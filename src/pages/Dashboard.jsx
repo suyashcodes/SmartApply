@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import DashboardHome from '../components/DashboardHome';
 import ResumeUpload from '../components/ResumeUpload';
+import ResumeBuilder from '../components/ResumeBuilder';
 import NewApplication from '../components/NewApplication';
 import ApplicationHistory from '../components/ApplicationHistory';
 import Settings from '../components/Settings';
@@ -19,6 +20,7 @@ export default function Dashboard() {
         <Routes>
           <Route path="/" element={<DashboardHome />} />
           <Route path="/upload" element={<ResumeUpload />} />
+          <Route path="/resume-builder" element={<ResumeBuilder />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/opportunities" element={<JobOpportunities />} />
           <Route path="/applied" element={<AppliedJobs />} />

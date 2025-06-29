@@ -11,12 +11,14 @@ import {
   Briefcase,
   CheckSquare,
   User,
-  Search
+  Search,
+  PenTool
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Upload Resume', href: '/dashboard/upload', icon: Upload },
+  { name: 'Resume Builder', href: '/dashboard/resume-builder', icon: PenTool },
   { name: 'New Application', href: '/dashboard/new-application', icon: FileText },
   { name: 'Job Search', href: '/dashboard/jobs', icon: Search },
   { name: 'Opportunities', href: '/dashboard/opportunities', icon: Briefcase },
