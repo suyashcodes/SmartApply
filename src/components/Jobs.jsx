@@ -15,7 +15,9 @@ import {
   TrendingUp,
   Award,
   Target,
-  Globe
+  Globe,
+  Star,
+  CheckCircle
 } from 'lucide-react';
 
 export default function Jobs() {
@@ -125,7 +127,7 @@ export default function Jobs() {
     for (const job of jobs) {
       try {
         const { data, error } = await supabase
-          .rpc('calculate_job_match_score', {
+          .rpc('calculate_advanced_job_match_score', {
             user_id_param: user.id,
             job_id_param: job.id
           });
@@ -200,6 +202,13 @@ export default function Jobs() {
     return 'text-red-600';
   };
 
+  const getMatchBgColor = (score) => {
+    if (score >= 80) return 'bg-green-500';
+    if (score >= 60) return 'bg-blue-500';
+    if (score >= 40) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
   const getMatchLabel = (score) => {
     if (score >= 80) return 'Excellent Match';
     if (score >= 60) return 'Good Match';
@@ -221,6 +230,49 @@ export default function Jobs() {
       return `${formatter.format(min)}+`;
     }
     return 'Salary not specified';
+  };
+
+  const renderSkillBadges = (skills, type = 'required') => {
+    if (!skills || skills.length === 0) return null;
+    
+    return (
+      <div className="mt-3">
+        <h4 className={`text-xs font-medium mb-2 ${type === 'required' ? 'text-red-700' : 'text-green-700'}`}>
+          {type === 'required' ? 'Required Skills' : 'Nice to Have'}
+        </h4>
+        <div className="flex flex-wrap gap-1">
+          {skills.slice(0, 4).map((skill, index) => (
+            <span
+              key={index}
+              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                type === 'required' 
+                  ? 'bg-red-50 text-red-700 border border-red-200' 
+                  : 'bg-green-50 text-green-700 border border-green-200'
+              }`}
+            >
+              {skill.name}
+              {skill.required_level && (
+                <span className="ml-1 flex">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-2 w-2 ${
+                        i < skill.required_level ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                      }`}
+                    />
+                  ))}
+                </span>
+              )}
+            </span>
+          ))}
+          {skills.length > 4 && (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+              +{skills.length - 4} more
+            </span>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -378,6 +430,12 @@ export default function Jobs() {
                       {job.description.substring(0, 200)}...
                     </p>
 
+                    {/* Skills */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      {renderSkillBadges(job.required_skills, 'required')}
+                      {renderSkillBadges(job.nice_to_have_skills, 'nice')}
+                    </div>
+
                     {/* Tags */}
                     <div className="flex flex-wrap gap-2 mb-4">
                       <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
@@ -410,7 +468,7 @@ export default function Jobs() {
                   {/* Match Score */}
                   {match && (
                     <div className="ml-6 flex-shrink-0">
-                      <div className="bg-gray-900 rounded-lg p-4 text-white text-center min-w-[140px]">
+                      <div className="bg-gray-900 rounded-lg p-4 text-white text-center min-w-[160px]">
                         <div className="relative w-16 h-16 mx-auto mb-3">
                           <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
                             <path
@@ -422,7 +480,7 @@ export default function Jobs() {
                             <path
                               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                               fill="none"
-                              stroke="#10B981"
+                              stroke={match.overall_score >= 80 ? "#10B981" : match.overall_score >= 60 ? "#3B82F6" : match.overall_score >= 40 ? "#F59E0B" : "#EF4444"}
                               strokeWidth="2"
                               strokeDasharray={`${match.overall_score}, 100`}
                             />
@@ -440,7 +498,7 @@ export default function Jobs() {
                               <Award className="h-3 w-3" />
                               <span>Skills</span>
                             </div>
-                            <span className={getMatchColor(match.skill_match)}>{match.skill_match}%</span>
+                            <span className={getMatchColor(match.skills_match)}>{match.skills_match}%</span>
                           </div>
                           
                           <div className="flex items-center justify-between">
@@ -465,6 +523,14 @@ export default function Jobs() {
                               <span>Location</span>
                             </div>
                             <span className={getMatchColor(match.location_match)}>{match.location_match}%</span>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>Title</span>
+                            </div>
+                            <span className={getMatchColor(match.title_match)}>{match.title_match}%</span>
                           </div>
                         </div>
                       </div>
