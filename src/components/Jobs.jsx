@@ -17,7 +17,13 @@ import {
   Target,
   Globe,
   Star,
-  CheckCircle
+  CheckCircle,
+  X,
+  Share,
+  Flag,
+  ExternalLink,
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function Jobs() {
@@ -33,6 +39,7 @@ export default function Jobs() {
   const [savedJobs, setSavedJobs] = useState(new Set());
   const [jobMatches, setJobMatches] = useState({});
   const [userProfile, setUserProfile] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -283,6 +290,310 @@ export default function Jobs() {
     );
   }
 
+  // Individual Job Page
+  if (selectedJob) {
+    const match = jobMatches[selectedJob.id];
+    const isSaved = savedJobs.has(selectedJob.id);
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="max-w-6xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => setSelectedJob(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">{selectedJob.title}</h1>
+                  <p className="text-gray-600">{selectedJob.company}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <Share className="h-5 w-5 text-gray-600" />
+                </button>
+                <button
+                  onClick={() => toggleSaveJob(selectedJob.id)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  {isSaved ? (
+                    <BookmarkCheck className="h-5 w-5 text-blue-600" />
+                  ) : (
+                    <Bookmark className="h-5 w-5 text-gray-600" />
+                  )}
+                </button>
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <Flag className="h-5 w-5 text-gray-600" />
+                </button>
+                <button
+                  onClick={() => applyToJob(selectedJob.id)}
+                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                >
+                  Apply Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Main Content */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Job Details */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-start space-x-4 mb-6">
+                  {selectedJob.company_logo ? (
+                    <img 
+                      src={selectedJob.company_logo} 
+                      alt={selectedJob.company}
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                      <Building className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+                  
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedJob.title}</h2>
+                    <p className="text-lg text-gray-700 font-medium mb-4">{selectedJob.company}</p>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                      <div className="flex items-center">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        <span>{selectedJob.location}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-2" />
+                        <span className="capitalize">{selectedJob.employment_type.replace('_', ' ')}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <DollarSign className="h-4 w-4 mr-2" />
+                        <span>{formatSalary(selectedJob.salary_min, selectedJob.salary_max, selectedJob.currency)}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-2" />
+                        <span>{selectedJob.applicant_count} applicants</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Match Insights Banner */}
+                {match && (
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <Sparkles className="h-5 w-5 text-green-600" />
+                        <div>
+                          <h3 className="font-medium text-gray-900">Maximize your interview chances</h3>
+                          <p className="text-sm text-gray-600">This role matches {match.overall_score}% of your profile</p>
+                        </div>
+                      </div>
+                      <button className="bg-white text-green-700 px-4 py-2 rounded-lg border border-green-200 hover:bg-green-50 transition-colors text-sm font-medium">
+                        <Sparkles className="h-4 w-4 mr-1 inline" />
+                        Generate Custom Resume
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Job Description */}
+                <div className="prose max-w-none">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">About this role</h3>
+                  <p className="text-gray-700 leading-relaxed mb-6">{selectedJob.description}</p>
+                  
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Requirements</h3>
+                  <p className="text-gray-700 leading-relaxed">{selectedJob.requirements}</p>
+                </div>
+
+                {/* Skills Section */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Skills & Technologies</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {renderSkillBadges(selectedJob.required_skills, 'required')}
+                    {renderSkillBadges(selectedJob.nice_to_have_skills, 'nice')}
+                  </div>
+                </div>
+
+                {/* Company Tags */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                      {selectedJob.industry}
+                    </span>
+                    <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                      {selectedJob.experience_level}
+                    </span>
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                      {selectedJob.work_type}
+                    </span>
+                    {selectedJob.department && (
+                      <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                        {selectedJob.department}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Match Score Card */}
+              {match && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="text-center mb-6">
+                    <div className="relative w-24 h-24 mx-auto mb-4">
+                      <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="#E5E7EB"
+                          strokeWidth="2"
+                        />
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke={match.overall_score >= 80 ? "#10B981" : match.overall_score >= 60 ? "#3B82F6" : match.overall_score >= 40 ? "#F59E0B" : "#EF4444"}
+                          strokeWidth="2"
+                          strokeDasharray={`${match.overall_score}, 100`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-2xl font-bold text-gray-900">{match.overall_score}%</span>
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{getMatchLabel(match.overall_score)}</h3>
+                    <p className="text-sm text-gray-600">Based on your profile</p>
+                  </div>
+
+                  {/* Detailed Metrics */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full ${match.experience_match >= 70 ? 'bg-green-500' : match.experience_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm font-medium text-gray-700">Experience Level</span>
+                      </div>
+                      <span className={`text-sm font-semibold ${getMatchColor(match.experience_match)}`}>
+                        {match.experience_match}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full ${match.skills_match >= 70 ? 'bg-green-500' : match.skills_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm font-medium text-gray-700">Skills</span>
+                      </div>
+                      <span className={`text-sm font-semibold ${getMatchColor(match.skills_match)}`}>
+                        {match.skills_match}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full ${match.industry_match >= 70 ? 'bg-green-500' : match.industry_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm font-medium text-gray-700">Industry Experience</span>
+                      </div>
+                      <span className={`text-sm font-semibold ${getMatchColor(match.industry_match)}`}>
+                        {match.industry_match}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-3 h-3 rounded-full ${match.title_match >= 70 ? 'bg-green-500' : match.title_match >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm font-medium text-gray-700">Role Alignment</span>
+                      </div>
+                      <span className={`text-sm font-semibold ${getMatchColor(match.title_match)}`}>
+                        {match.title_match}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {match.overall_score >= 70 && (
+                    <div className="mt-6 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-800">Growth Opportunities</span>
+                      </div>
+                      <p className="text-xs text-green-700 mt-1">
+                        This role aligns well with your career trajectory
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Quick Actions */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => applyToJob(selectedJob.id)}
+                    className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  >
+                    Apply Now
+                  </button>
+                  <button
+                    onClick={() => toggleSaveJob(selectedJob.id)}
+                    className={`w-full py-2 px-4 rounded-lg transition-colors font-medium border ${
+                      isSaved 
+                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {isSaved ? 'Saved' : 'Save Job'}
+                  </button>
+                  <button className="w-full bg-white text-gray-700 py-2 px-4 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors font-medium">
+                    View Company Profile
+                  </button>
+                </div>
+              </div>
+
+              {/* Job Details */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Job Details</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Posted</span>
+                    <span className="text-gray-900">{new Date(selectedJob.posted_date).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Applicants</span>
+                    <span className="text-gray-900">{selectedJob.applicant_count}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Job Type</span>
+                    <span className="text-gray-900 capitalize">{selectedJob.employment_type.replace('_', ' ')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Experience</span>
+                    <span className="text-gray-900 capitalize">{selectedJob.experience_level}</span>
+                  </div>
+                  {selectedJob.application_deadline && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Deadline</span>
+                      <span className="text-gray-900">{new Date(selectedJob.application_deadline).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Jobs List View
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -375,7 +686,10 @@ export default function Jobs() {
                           </div>
                         )}
                         <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                          <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
+                              onClick={() => setSelectedJob(job)}>
+                            {job.title}
+                          </h3>
                           <p className="text-gray-600 font-medium">{job.company}</p>
                         </div>
                       </div>
@@ -459,7 +773,10 @@ export default function Jobs() {
                       >
                         Apply Now
                       </button>
-                      <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                      <button 
+                        onClick={() => setSelectedJob(job)}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
                         View Details
                       </button>
                     </div>
