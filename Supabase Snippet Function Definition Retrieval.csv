@@ -1,0 +1,213 @@
+pg_get_functiondef
+"CREATE OR REPLACE FUNCTION public.calculate_advanced_job_match_score(user_id_param uuid, job_id_param uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  user_profile record;
+  job_record record;
+  required_skills jsonb;
+  nice_to_have_skills jsonb;
+  skills_score decimal := 0;
+  experience_score decimal := 0;
+  industry_score decimal := 0;
+  location_score decimal := 0;
+  title_score decimal := 0;
+  total_required_skills integer := 0;
+  matched_required_skills decimal := 0;
+  skill_bonus decimal := 0;
+  required_skill jsonb;
+  user_skill record;
+  skill_match_score decimal;
+  best_skill_match decimal;
+  target_years integer;
+  experience_gap integer;
+  gap_penalty decimal;
+  distance_km decimal;
+  proximity_score decimal;
+  overall_score decimal;
+  title_weight decimal := 0.15;
+  skills_weight decimal := 0.35;
+  temp_experience_years integer;
+BEGIN
+  -- Check for exactly one user profile
+  PERFORM 1 FROM user_profiles WHERE user_id = user_id_param;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'User profile not found');
+  ELSIF (SELECT COUNT(*) FROM user_profiles WHERE user_id = user_id_param) > 1 THEN
+    RETURN jsonb_build_object('error', 'Multiple user profiles found');
+  END IF;
+
+  -- Check for exactly one job
+  PERFORM 1 FROM jobs WHERE id = job_id_param;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'Job not found');
+  ELSIF (SELECT COUNT(*) FROM jobs WHERE id = job_id_param) > 1 THEN
+    RETURN jsonb_build_object('error', 'Multiple jobs found');
+  END IF;
+
+  -- Get user profile (now guaranteed to be exactly one)
+  SELECT * INTO user_profile FROM user_profiles WHERE user_id = user_id_param;
+  
+  -- Get job details (now guaranteed to be exactly one)
+  SELECT * INTO job_record FROM jobs WHERE id = job_id_param;
+  
+  -- JOB TITLE MATCHING
+  IF user_profile.job_titles IS NOT NULL THEN
+    title_score := job_title_similarity(user_profile.job_titles, job_record.title) * 100;
+  ELSE
+    title_score := 30;
+  END IF;
+  
+  -- Adjust weights
+  IF title_score >= 90 THEN
+    title_weight := 0.20;
+    skills_weight := 0.30;
+  ELSIF title_score >= 70 THEN
+    title_weight := 0.18;
+    skills_weight := 0.32;
+  END IF;
+  
+  -- SKILLS MATCHING
+  SELECT COALESCE(jsonb_agg(DISTINCT jsonb_build_object('name', skill_name, 'required_level', required_level)), '[]'::jsonb) 
+  INTO required_skills FROM job_skills WHERE job_id = job_id_param AND is_required = true;
+  
+  SELECT COALESCE(jsonb_agg(DISTINCT jsonb_build_object('name', skill_name, 'required_level', required_level)), '[]'::jsonb) 
+  INTO nice_to_have_skills FROM job_skills WHERE job_id = job_id_param AND is_required = false;
+  
+  total_required_skills := COALESCE(jsonb_array_length(required_skills), 0);
+  
+  IF total_required_skills > 0 THEN
+    FOR required_skill IN SELECT * FROM jsonb_array_elements(required_skills)
+    LOOP
+      best_skill_match := 0;
+      
+      FOR user_skill IN SELECT * FROM user_skills WHERE user_id = user_id_param AND skill_name IS NOT NULL
+      LOOP
+        skill_match_score := skill_similarity(user_skill.skill_name, required_skill->>'name');
+        
+        IF skill_match_score > best_skill_match THEN
+          best_skill_match := skill_match_score;
+          
+          IF skill_match_score >= 0.8 THEN
+            skill_match_score := (user_skill.proficiency_level::decimal / 5.0) * skill_match_score;
+            
+            IF (required_skill->>'required_level') IS NOT NULL AND 
+               (required_skill->>'required_level')::integer > user_skill.proficiency_level THEN
+              skill_match_score := skill_match_score - (0.1 * ((required_skill->>'required_level')::integer - user_skill.proficiency_level));
+            END IF;
+            
+            skill_match_score := GREATEST(skill_match_score, 0.1);
+          END IF;
+        END IF;
+      END LOOP;
+      
+      matched_required_skills := matched_required_skills + GREATEST(best_skill_match, 0);
+    END LOOP;
+    
+    skills_score := (matched_required_skills / total_required_skills) * 100;
+  ELSE
+    skills_score := 50;
+  END IF;
+  
+  -- Add bonus for nice-to-have skills
+  IF jsonb_array_length(nice_to_have_skills) > 0 THEN
+    FOR required_skill IN SELECT * FROM jsonb_array_elements(nice_to_have_skills)
+    LOOP
+      FOR user_skill IN SELECT * FROM user_skills WHERE user_id = user_id_param AND skill_name IS NOT NULL
+      LOOP
+        skill_match_score := skill_similarity(user_skill.skill_name, required_skill->>'name');
+        IF skill_match_score >= 0.8 THEN
+          skill_bonus := skill_bonus + (0.2 * skill_match_score);
+        END IF;
+      END LOOP;
+    END LOOP;
+  END IF;
+  
+  skills_score := LEAST(skills_score + skill_bonus, 100);
+  
+  -- EXPERIENCE MATCHING (SAFER VERSION)
+  -- First try to get experience years from job_record directly
+  BEGIN
+    -- This will fail gracefully if column doesn't exist
+    target_years := CASE 
+      WHEN job_record.experience_level = 'entry' THEN 1
+      WHEN job_record.experience_level = 'mid' THEN 3
+      WHEN job_record.experience_level = 'senior' THEN 6
+      WHEN job_record.experience_level = 'lead' THEN 8
+      ELSE 2 -- Default fallback
+    END;
+  EXCEPTION WHEN OTHERS THEN
+    target_years := 2; -- Fallback value
+  END;
+  
+  experience_gap := abs(COALESCE(user_profile.experience_years, 0) - target_years);
+  gap_penalty := CASE WHEN job_record.experience_level IN ('entry', 'mid') THEN 10 ELSE 5 END;
+  experience_score := GREATEST(100 - (gap_penalty * experience_gap), 30);
+  
+  -- INDUSTRY MATCHING (SAFER VERSION)
+  BEGIN
+    industry_score := industry_similarity(user_profile.industry, job_record.industry) * 100;
+  EXCEPTION WHEN OTHERS THEN
+    industry_score := 50; -- Neutral score if comparison fails
+  END;
+  
+  -- LOCATION/WORK TYPE MATCHING
+  IF job_record.work_type = 'remote' OR user_profile.work_preference = 'remote' THEN
+    location_score := 100;
+  ELSIF user_profile.work_preference = 'any' THEN
+    location_score := 90;
+  ELSE
+    BEGIN
+      distance_km := calculate_distance(
+        user_profile.latitude, 
+        user_profile.longitude,
+        job_record.latitude, 
+        job_record.longitude
+      );
+      
+      proximity_score := GREATEST((1 - distance_km / 2000.0) * 100, 30);
+      
+      IF user_profile.work_preference != job_record.work_type THEN
+        proximity_score := proximity_score * 0.7;
+      END IF;
+      
+      location_score := LEAST(proximity_score, 90);
+    EXCEPTION WHEN OTHERS THEN
+      location_score := 70; -- Default score if location calculation fails
+    END;
+  END IF;
+  
+  -- Calculate overall score with dynamic weights
+  overall_score := (skills_score * skills_weight) + 
+                   (experience_score * 0.25) + 
+                   (industry_score * 0.15) + 
+                   (location_score * 0.10) + 
+                   (title_score * title_weight);
+  
+  -- Round to integer
+  overall_score := round(overall_score);
+  skills_score := round(skills_score);
+  experience_score := round(experience_score);
+  industry_score := round(industry_score);
+  location_score := round(location_score);
+  title_score := round(title_score);
+  
+  RETURN jsonb_build_object(
+    'overall_score', overall_score,
+    'skills_match', skills_score,
+    'experience_match', experience_score,
+    'industry_match', industry_score,
+    'location_match', location_score,
+    'title_match', title_score,
+    'match_category', CASE
+      WHEN overall_score >= 90 THEN 'Perfect Match'
+      WHEN overall_score >= 80 THEN 'Excellent Match'
+      WHEN overall_score >= 70 THEN 'Good Match'
+      WHEN overall_score >= 50 THEN 'Fair Match'
+      ELSE 'Poor Match'
+    END
+  );
+END;
+$function$
+"
