@@ -7,6 +7,7 @@ import { ResumeProvider } from './hooks/useResumes';
 import { JobOpportunitiesProvider } from './hooks/useJobOpportunities';
 import { AppliedJobsProvider } from './hooks/useAppliedJobs';
 import { AssignmentsProvider } from './hooks/useAssignments';
+import JobMatchScoreInfo from './pages/JobMatchScoreInfo';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -29,6 +30,7 @@ function AppRoutes() {
         path="/"
         element={<Navigate to={user ? "/dashboard" : "/login"} />}
       />
+      <Route path="/job-match-score-info" element={<JobMatchScoreInfo />} />
     </Routes>
   );
 }

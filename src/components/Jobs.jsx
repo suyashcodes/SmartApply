@@ -25,6 +25,7 @@ import {
   Sparkles,
   ArrowLeft
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
@@ -42,6 +43,7 @@ export default function Jobs() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [hoveredJob, setHoveredJob] = useState(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
@@ -730,9 +732,18 @@ export default function Jobs() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Job Recommendations</h1>
-        <p className="text-gray-600">Discover opportunities tailored to your skills and experience</p>
+      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Job Recommendations</h1>
+          <p className="text-gray-600">Discover opportunities tailored to your skills and experience</p>
+        </div>
+        <button
+          onClick={() => navigate('/dashboard/job-match-score-info')}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-200 transition-colors font-medium text-sm"
+        >
+          <Sparkles className="h-5 w-5" />
+          How is the job match score calculated?
+        </button>
       </div>
 
       {/* Search and Filters */}
@@ -799,7 +810,6 @@ export default function Jobs() {
           jobs.map((job) => {
             const match = jobMatches[job.id];
             const isSaved = savedJobs.has(job.id);
-            
             return (
               <div 
                 key={job.id} 
@@ -807,14 +817,9 @@ export default function Jobs() {
                 onMouseEnter={() => setHoveredJob(job.id)}
                 onMouseLeave={() => setHoveredJob(null)}
               >
-                {/* Hover Metrics Overlay */}
-                {hoveredJob === job.id && match && (
-                  <HoverMetrics match={match} job={job} />
-                )}
-
-                <div className="flex justify-between items-start">
-                  {/* Job Info */}
-                  <div className="flex-1">
+                <div className="flex flex-row justify-between items-start">
+                  {/* Left: Job Info and Actions */}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-3">
                         {job.company_logo ? (
@@ -836,7 +841,6 @@ export default function Jobs() {
                           <p className="text-gray-600 font-medium">{job.company}</p>
                         </div>
                       </div>
-                      
                       <button
                         onClick={() => toggleSaveJob(job.id)}
                         className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
@@ -924,10 +928,9 @@ export default function Jobs() {
                       </button>
                     </div>
                   </div>
-
-                  {/* Match Score */}
+                  {/* Right: Match Score and Hover Metrics */}
                   {match && (
-                    <div className="ml-6 flex-shrink-0">
+                    <div className="ml-6 flex-shrink-0 flex flex-col items-end relative min-w-[200px]">
                       <div className="bg-gray-900 rounded-lg p-4 text-white text-center min-w-[160px]">
                         <div className="relative w-16 h-16 mx-auto mb-3">
                           <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
@@ -950,7 +953,6 @@ export default function Jobs() {
                           </div>
                         </div>
                         <p className="text-xs font-medium mb-3">{getMatchLabel(match.overall_score)}</p>
-                        
                         {/* Detailed Metrics */}
                         <div className="space-y-2 text-xs">
                           <div className="flex items-center justify-between">
@@ -960,7 +962,6 @@ export default function Jobs() {
                             </div>
                             <span className={getMatchColor(match.skills_match)}>{match.skills_match}%</span>
                           </div>
-                          
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1">
                               <TrendingUp className="h-3 w-3" />
@@ -968,7 +969,6 @@ export default function Jobs() {
                             </div>
                             <span className={getMatchColor(match.experience_match)}>{match.experience_match}%</span>
                           </div>
-                          
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1">
                               <Target className="h-3 w-3" />
@@ -976,7 +976,6 @@ export default function Jobs() {
                             </div>
                             <span className={getMatchColor(match.industry_match)}>{match.industry_match}%</span>
                           </div>
-                          
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1">
                               <Globe className="h-3 w-3" />
@@ -984,7 +983,6 @@ export default function Jobs() {
                             </div>
                             <span className={getMatchColor(match.location_match)}>{match.location_match}%</span>
                           </div>
-
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1">
                               <CheckCircle className="h-3 w-3" />
@@ -994,6 +992,34 @@ export default function Jobs() {
                           </div>
                         </div>
                       </div>
+                      {/* Show metrics popup only in this right section, not covering the card */}
+                      {hoveredJob === job.id && (
+                        <div className="absolute top-0 right-0 w-[220px] bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50 mt-2">
+                          <div className="text-sm font-semibold mb-2 text-gray-900">Match Breakdown</div>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span>Skills</span>
+                              <span className={getMatchColor(match.skills_match)}>{match.skills_match}%</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Experience</span>
+                              <span className={getMatchColor(match.experience_match)}>{match.experience_match}%</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Industry</span>
+                              <span className={getMatchColor(match.industry_match)}>{match.industry_match}%</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Location</span>
+                              <span className={getMatchColor(match.location_match)}>{match.location_match}%</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Title</span>
+                              <span className={getMatchColor(match.title_match)}>{match.title_match}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -11,6 +11,7 @@ import AppliedJobs from '../components/AppliedJobs';
 import Assignments from '../components/Assignments';
 import Jobs from '../components/Jobs';
 import UserProfile from '../components/UserProfile';
+import JobMatchScoreInfo from './JobMatchScoreInfo';
 
 export default function Dashboard() {
   return (
@@ -24,6 +25,7 @@ export default function Dashboard() {
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/opportunities" element={<JobOpportunities />} />
           <Route path="/applied" element={<AppliedJobs />} />
+          <Route path="/job-match-score-info" element={<JobMatchScoreInfo />} />
           <Route path="/assignments" element={<Assignments />} />
           <Route path="/new-application" element={<NewApplication />} />
           <Route path="/history" element={<ApplicationHistory />} />
