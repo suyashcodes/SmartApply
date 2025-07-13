@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useSemanticSearch } from '../hooks/useSemanticSearch';
 import { supabase } from '../lib/supabase';
 import { 
   MapPin, 
@@ -23,7 +24,10 @@ import {
   Flag,
   ExternalLink,
   Sparkles,
-  ArrowLeft
+  ArrowLeft,
+  Brain,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,6 +35,7 @@ export default function Jobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchMode, setSearchMode] = useState('hybrid'); // 'traditional', 'semantic', 'hybrid'
   const [filters, setFilters] = useState({
     location: '',
     experience_level: '',
@@ -42,8 +47,22 @@ export default function Jobs() {
   const [userProfile, setUserProfile] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
   const [hoveredJob, setHoveredJob] = useState(null);
+  const [similarJobs, setSimilarJobs] = useState({});
+  const [personalizedRecommendations, setPersonalizedRecommendations] = useState([]);
   const { user } = useAuth();
   const navigate = useNavigate();
+  
+  const {
+    loading: semanticLoading,
+    error: semanticError,
+    searchJobs,
+    hybridSearch,
+    findSimilarJobs,
+    getPersonalizedRecommendations,
+    updateUserPreferences,
+    checkSemanticSearchSetup,
+    batchGenerateJobEmbeddings
+  } = useSemanticSearch();
 
   useEffect(() => {
     if (user) {
@@ -58,6 +77,13 @@ export default function Jobs() {
       calculateJobMatches();
     }
   }, [jobs, userProfile]);
+
+  // New useEffect for personalized recommendations
+  useEffect(() => {
+    if (user && userProfile) {
+      loadPersonalizedRecommendations();
+    }
+  }, [user, userProfile]);
 
   const fetchUserProfile = async () => {
     try {
@@ -75,46 +101,6 @@ export default function Jobs() {
     }
   };
 
-  const fetchJobs = async () => {
-    try {
-      setLoading(true);
-      let query = supabase
-        .from('jobs')
-        .select('*')
-        .eq('is_active', true)
-        .order('posted_date', { ascending: false });
-
-      if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-      }
-
-      if (filters.location) {
-        query = query.ilike('location', `%${filters.location}%`);
-      }
-
-      if (filters.experience_level) {
-        query = query.eq('experience_level', filters.experience_level);
-      }
-
-      if (filters.employment_type) {
-        query = query.eq('employment_type', filters.employment_type);
-      }
-
-      if (filters.industry) {
-        query = query.eq('industry', filters.industry);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setJobs(data || []);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchSavedJobs = async () => {
     try {
       const { data, error } = await supabase
@@ -129,6 +115,193 @@ export default function Jobs() {
     } catch (error) {
       console.error('Error fetching saved jobs:', error);
     }
+  };
+
+  // Enhanced fetchJobs function with semantic search
+  const fetchJobs = async () => {
+    try {
+      setLoading(true);
+      
+      if (searchTerm && searchMode !== 'traditional') {
+        // Use semantic or hybrid search
+        let results = [];
+        
+        if (searchMode === 'semantic') {
+          results = await searchJobs({
+            query: searchTerm,
+            userId: user?.id,
+            matchThreshold: 0.7,
+            matchCount: 20,
+            filters: {
+              experienceLevel: filters.experience_level,
+              employmentType: filters.employment_type,
+              industry: filters.industry,
+              location: filters.location
+            }
+          });
+        } else if (searchMode === 'hybrid') {
+          results = await hybridSearch({
+            query: searchTerm,
+            userId: user?.id,
+            matchThreshold: 0.6,
+            matchCount: 20,
+            filters: {
+              experienceLevel: filters.experience_level,
+              employmentType: filters.employment_type,
+              industry: filters.industry,
+              location: filters.location
+            }
+          });
+        }
+        
+        // Transform semantic search results to match existing job structure
+        const transformedJobs = results.map(result => ({
+          id: result.job_id,
+          title: result.title,
+          company: result.company,
+          location: result.location,
+          experience_level: result.experience_level,
+          employment_type: result.employment_type,
+          industry: result.industry,
+          description: result.description,
+          salary_min: result.salary_min,
+          salary_max: result.salary_max,
+          currency: result.currency,
+          work_type: result.work_type,
+          posted_date: result.posted_date,
+          is_active: result.is_active,
+          semantic_similarity: result.semantic_similarity,
+          combined_score: result.combined_score,
+          applicant_count: Math.floor(Math.random() * 100) + 10, // Mock data
+          required_skills: [], // These would need to be fetched separately
+          nice_to_have_skills: []
+        }));
+        
+        setJobs(transformedJobs);
+        
+        // Set job matches from semantic search results
+        const matches = {};
+        results.forEach(result => {
+          if (result.job_match_score) {
+            matches[result.job_id] = result.job_match_score;
+          }
+        });
+        setJobMatches(matches);
+        
+      } else {
+        // Traditional search
+        let query = supabase
+          .from('jobs')
+          .select('*')
+          .eq('is_active', true)
+          .order('posted_date', { ascending: false });
+
+        if (searchTerm) {
+          query = query.or(`title.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+        }
+
+        if (filters.location) {
+          query = query.ilike('location', `%${filters.location}%`);
+        }
+
+        if (filters.experience_level) {
+          query = query.eq('experience_level', filters.experience_level);
+        }
+
+        if (filters.employment_type) {
+          query = query.eq('employment_type', filters.employment_type);
+        }
+
+        if (filters.industry) {
+          query = query.eq('industry', filters.industry);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        setJobs(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load personalized recommendations
+  const loadPersonalizedRecommendations = async () => {
+    try {
+      const recommendations = await getPersonalizedRecommendations(user.id, 10);
+      setPersonalizedRecommendations(recommendations);
+    } catch (error) {
+      console.error('Error loading personalized recommendations:', error);
+    }
+  };
+
+  // Load similar jobs for a specific job
+  const loadSimilarJobs = async (jobId) => {
+    try {
+      const similar = await findSimilarJobs(jobId, 0.8, 5);
+      setSimilarJobs(prev => ({
+        ...prev,
+        [jobId]: similar
+      }));
+    } catch (error) {
+      console.error('Error loading similar jobs:', error);
+    }
+  };
+
+  // Update user preferences
+  const handleUpdatePreferences = async () => {
+    if (!userProfile) return;
+    
+    const preferenceText = `
+      Looking for ${userProfile.job_titles || 'opportunities'} 
+      in ${userProfile.industry || 'technology'} industry.
+      Preferred work type: ${userProfile.work_preference || 'any'}.
+      Experience level: ${userProfile.experience_years || 0} years.
+      Skills: ${userProfile.skills?.map(s => s.name).join(', ') || 'various skills'}.
+    `;
+    
+    const success = await updateUserPreferences(user.id, preferenceText);
+    if (success) {
+      loadPersonalizedRecommendations();
+    }
+  };
+
+  // Check semantic search setup
+  const handleCheckSetup = async () => {
+    const setupResult = await checkSemanticSearchSetup();
+    console.log('Setup check result:', setupResult);
+    
+    if (setupResult.isSetup) {
+      alert('✅ Semantic search is properly set up!');
+    } else {
+      alert(`❌ Setup Issue: ${setupResult.error}\n\nDetails: ${setupResult.details}\n\nPlease run the semantic_search_setup.sql file in your Supabase SQL Editor.`);
+    }
+  };
+
+  // Generate embeddings for jobs (admin function)
+  const handleGenerateEmbeddings = async () => {
+    // First check if setup is complete
+    const setupResult = await checkSemanticSearchSetup();
+    if (!setupResult.isSetup) {
+      alert(`❌ Setup Required: ${setupResult.error}\n\nPlease run the semantic_search_setup.sql file first.`);
+      return;
+    }
+    
+    const result = await batchGenerateJobEmbeddings();
+    console.log('Embedding generation result:', result);
+    
+    let message = `Generated embeddings for ${result.processed} out of ${result.total} jobs`;
+    if (result.message) {
+      message += `\n\n${result.message}`;
+    }
+    if (result.error) {
+      message += `\n\nError: ${result.error}`;
+    }
+    
+    alert(message);
   };
 
   const calculateJobMatches = async () => {
@@ -210,13 +383,6 @@ export default function Jobs() {
     if (score >= 60) return 'text-blue-600';
     if (score >= 40) return 'text-yellow-600';
     return 'text-red-600';
-  };
-
-  const getMatchBgColor = (score) => {
-    if (score >= 80) return 'bg-green-500';
-    if (score >= 60) return 'bg-blue-500';
-    if (score >= 40) return 'bg-yellow-500';
-    return 'bg-red-500';
   };
 
   const getMatchLabel = (score) => {
@@ -418,343 +584,129 @@ export default function Jobs() {
         </div>
       </div>
     );
-  };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
   }
 
-  // Individual Job Page
-  if (selectedJob) {
-    const match = jobMatches[selectedJob.id];
-    const isSaved = savedJobs.has(selectedJob.id);
-
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="max-w-6xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => setSelectedJob(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-                <div>
-                  <p className="text-sm text-gray-600">{selectedJob.applicant_count} applicants</p>
-                  <p className="text-sm text-gray-500">Posted by Agency</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-3">
-                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                  <X className="h-5 w-5 text-gray-600" />
-                </button>
-                <button
-                  onClick={() => toggleSaveJob(selectedJob.id)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  {isSaved ? (
-                    <BookmarkCheck className="h-5 w-5 text-blue-600" />
-                  ) : (
-                    <Bookmark className="h-5 w-5 text-gray-600" />
-                  )}
-                </button>
-                <button
-                  onClick={() => applyToJob(selectedJob.id)}
-                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center"
-                >
-                  APPLY NOW
-                  <ExternalLink className="h-4 w-4 ml-2" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Navigation Tabs */}
-              <div className="flex space-x-8 border-b border-gray-200">
-                <button className="pb-2 border-b-2 border-black text-black font-medium">
-                  Overview
-                </button>
-                <button className="pb-2 text-gray-500 hover:text-gray-700">
-                  Company
-                </button>
-              </div>
-
-              {/* Company Info */}
-              <div className="flex items-center space-x-4 mb-6">
-                {selectedJob.company_logo ? (
-                  <img 
-                    src={selectedJob.company_logo} 
-                    alt={selectedJob.company}
-                    className="w-12 h-12 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                    M
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-medium text-gray-900">{selectedJob.company}</h3>
-                  <p className="text-sm text-gray-500">12 hours ago</p>
-                </div>
-              </div>
-
-              {/* Job Title */}
-              <h1 className="text-3xl font-bold text-gray-900 mb-6">{selectedJob.title}</h1>
-
-              {/* Job Details Grid */}
-              <div className="grid grid-cols-2 gap-6 mb-8">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="h-5 w-5 text-gray-400" />
-                  <span className="text-gray-700">{selectedJob.location}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Users className="h-5 w-5 text-gray-400" />
-                  <span className="text-gray-700">Contact</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Building className="h-5 w-5 text-gray-400" />
-                  <span className="text-gray-700 capitalize">{selectedJob.work_type}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5 text-gray-400" />
-                  <span className="text-gray-700 capitalize">{selectedJob.experience_level} Level</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5 text-gray-400" />
-                  <span className="text-gray-700">{formatSalary(selectedJob.salary_min, selectedJob.salary_max, selectedJob.currency)}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-gray-400" />
-                  <span className="text-gray-700">{selectedJob.required_experience_years || 2}+ years exp</span>
-                </div>
-              </div>
-
-              {/* Match Insights Banner */}
-              {match && (
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <Sparkles className="h-5 w-5 text-green-600" />
-                      <div>
-                        <h3 className="font-medium text-gray-900">Maximize your interview chances</h3>
-                      </div>
-                    </div>
-                    <button className="bg-white text-green-700 px-4 py-2 rounded-lg border border-green-200 hover:bg-green-50 transition-colors text-sm font-medium flex items-center">
-                      <Sparkles className="h-4 w-4 mr-1" />
-                      Generate Custom Resume
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Job Description */}
-              <div className="prose max-w-none">
-                <p className="text-gray-700 leading-relaxed mb-6">{selectedJob.description}</p>
-                <p className="text-gray-700 leading-relaxed">{selectedJob.requirements}</p>
-              </div>
-
-              {/* Skills Section */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <div className="flex flex-wrap gap-2">
-                  {selectedJob.required_skills?.slice(0, 4).map((skill, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
-                    >
-                      {skill.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Hiring Manager */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium text-gray-900">Hiring Manager</h3>
-                    <p className="text-gray-600">Soumi De</p>
-                  </div>
-                  <button className="p-2 text-gray-400 hover:text-blue-600">
-                    <ExternalLink className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Match Score Card */}
-              {match && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="text-center mb-6">
-                    <div className="relative w-24 h-24 mx-auto mb-4">
-                      <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
-                        <path
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                          fill="none"
-                          stroke="#E5E7EB"
-                          strokeWidth="2"
-                        />
-                        <path
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                          fill="none"
-                          stroke={match.overall_score >= 80 ? "#10B981" : match.overall_score >= 60 ? "#3B82F6" : match.overall_score >= 40 ? "#F59E0B" : "#EF4444"}
-                          strokeWidth="2"
-                          strokeDasharray={`${match.overall_score}, 100`}
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-2xl font-bold text-gray-900">{match.overall_score}%</span>
-                      </div>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{getMatchLabel(match.overall_score)}</h3>
-                  </div>
-
-                  {/* Individual Metrics */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <div className="relative w-16 h-16 mx-auto mb-2">
-                        <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                          <path
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="#E5E7EB"
-                            strokeWidth="2"
-                          />
-                          <path
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="#10B981"
-                            strokeWidth="2"
-                            strokeDasharray={`${match.experience_match}, 100`}
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-sm font-bold">{match.experience_match}%</span>
-                        </div>
-                      </div>
-                      <p className="text-xs font-medium text-gray-700">Exp. Level</p>
-                    </div>
-
-                    <div className="text-center">
-                      <div className="relative w-16 h-16 mx-auto mb-2">
-                        <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                          <path
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="#E5E7EB"
-                            strokeWidth="2"
-                          />
-                          <path
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="#10B981"
-                            strokeWidth="2"
-                            strokeDasharray={`${match.skills_match}, 100`}
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-sm font-bold">{match.skills_match}%</span>
-                        </div>
-                      </div>
-                      <p className="text-xs font-medium text-gray-700">Skill</p>
-                    </div>
-
-                    <div className="text-center">
-                      <div className="relative w-16 h-16 mx-auto mb-2">
-                        <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                          <path
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="#E5E7EB"
-                            strokeWidth="2"
-                          />
-                          <path
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="#10B981"
-                            strokeWidth="2"
-                            strokeDasharray={`${match.industry_match}, 100`}
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-sm font-bold">{match.industry_match}%</span>
-                        </div>
-                      </div>
-                      <p className="text-xs font-medium text-gray-700">Industry Exp.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="space-y-3">
-                  <button
-                    onClick={() => applyToJob(selectedJob.id)}
-                    className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
-                  >
-                    Apply Now
-                  </button>
-                  <button
-                    onClick={() => toggleSaveJob(selectedJob.id)}
-                    className={`w-full py-3 px-4 rounded-lg transition-colors font-medium border ${
-                      isSaved 
-                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {isSaved ? 'Saved' : 'Save Job'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Jobs List View
+  // Jobs List View with enhanced semantic search
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Job Recommendations</h1>
-          <p className="text-gray-600">Discover opportunities tailored to your skills and experience</p>
+          <p className="text-gray-600">Discover opportunities with AI-powered semantic search</p>
         </div>
-        <button
-          onClick={() => navigate('/dashboard/job-match-score-info')}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-200 transition-colors font-medium text-sm"
-        >
-          <Sparkles className="h-5 w-5" />
-          How is the job match score calculated?
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleUpdatePreferences}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 border border-purple-300 rounded-lg hover:bg-purple-200 transition-colors font-medium text-sm"
+          >
+            <Brain className="h-4 w-4" />
+            Update AI Preferences
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/job-match-score-info')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-200 transition-colors font-medium text-sm"
+          >
+            <Sparkles className="h-5 w-5" />
+            How is the job match score calculated?
+          </button>
+        </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Personalized Recommendations */}
+      {personalizedRecommendations.length > 0 && (
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Zap className="h-5 w-5 text-purple-600 mr-2" />
+              AI-Powered Recommendations
+            </h2>
+            <button
+              onClick={loadPersonalizedRecommendations}
+              className="text-purple-600 hover:text-purple-700 text-sm font-medium"
+            >
+              <RefreshCw className="h-4 w-4 inline mr-1" />
+              Refresh
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {personalizedRecommendations.slice(0, 3).map((rec, index) => (
+              <div key={index} className="bg-white rounded-lg p-4 border border-purple-200">
+                <h3 className="font-medium text-gray-900 mb-1">{rec.title}</h3>
+                <p className="text-sm text-gray-600 mb-2">{rec.company}</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                    {Math.round(rec.recommendation_score * 100)}% match
+                  </span>
+                  <button
+                    onClick={() => {
+                      const fullJob = { 
+                        id: rec.job_id, 
+                        title: rec.title, 
+                        company: rec.company,
+                        location: rec.location,
+                        experience_level: rec.experience_level,
+                        employment_type: rec.employment_type,
+                        industry: rec.industry
+                      };
+                      setSelectedJob(fullJob);
+                    }}
+                    className="text-purple-600 hover:text-purple-700 text-sm font-medium"
+                  >
+                    View →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Search and Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
+          {/* Search Mode Selector */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setSearchMode('traditional')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                searchMode === 'traditional' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Traditional
+            </button>
+            <button
+              onClick={() => setSearchMode('semantic')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                searchMode === 'semantic' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Brain className="h-4 w-4 inline mr-1" />
+              Semantic
+            </button>
+            <button
+              onClick={() => setSearchMode('hybrid')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                searchMode === 'hybrid' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Zap className="h-4 w-4 inline mr-1" />
+              Hybrid
+            </button>
+          </div>
+
+          {/* Search Input */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <input
               type="text"
-              placeholder="Search jobs, companies, or keywords..."
+              placeholder={
+                searchMode === 'semantic' 
+                  ? "Describe what you're looking for (e.g., 'remote AI internship for students')"
+                  : searchMode === 'hybrid'
+                  ? "Search with natural language or keywords..."
+                  : "Search jobs, companies, or keywords..."
+              }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -791,20 +743,64 @@ export default function Jobs() {
               onClick={fetchJobs}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
-              <Filter className="h-4 w-4" />
-              Apply
+              <Search className="h-4 w-4" />
+              Search
             </button>
           </div>
         </div>
+
+        {/* Search Mode Description */}
+        <div className="mt-3 text-sm text-gray-600">
+          {searchMode === 'semantic' && (
+            <p>🧠 <strong>Semantic Search:</strong> AI understands the meaning behind your query and finds relevant jobs even with different keywords.</p>
+          )}
+          {searchMode === 'hybrid' && (
+            <p>⚡ <strong>Hybrid Search:</strong> Combines AI semantic understanding with traditional keyword matching for best results.</p>
+          )}
+          {searchMode === 'traditional' && (
+            <p>🔍 <strong>Traditional Search:</strong> Classic keyword-based search that matches exact words and phrases.</p>
+          )}
+        </div>
+
+        {semanticError && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 text-sm">
+              <strong>Search Error:</strong> {semanticError}
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Jobs List */}
+      {/* Admin Controls (hidden in production) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h3 className="font-medium text-yellow-800 mb-2">Admin Controls (Development Only)</h3>
+          <div className="flex gap-3">
+            <button
+              onClick={handleCheckSetup}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Check Setup
+            </button>
+            <button
+              onClick={handleGenerateEmbeddings}
+              className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm flex items-center gap-2"
+            >
+              <Brain className="h-4 w-4" />
+              Generate Job Embeddings
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Jobs List - enhanced with semantic search indicators */}
       <div className="space-y-4">
         {jobs.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
             <Building className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900">No jobs found</h3>
-            <p className="text-gray-500 mt-2">Try adjusting your search criteria</p>
+            <p className="text-gray-500 mt-2">Try adjusting your search criteria or use different search mode</p>
           </div>
         ) : (
           jobs.map((job) => {
@@ -820,6 +816,24 @@ export default function Jobs() {
                 <div className="flex flex-row justify-between items-start">
                   {/* Left: Job Info and Actions */}
                   <div className="flex-1 min-w-0">
+                    {/* Semantic Search Indicators */}
+                    {(job.semantic_similarity || job.combined_score) && (
+                      <div className="mb-3 flex gap-2">
+                        {job.semantic_similarity && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                            <Brain className="h-3 w-3 mr-1" />
+                            {Math.round(job.semantic_similarity * 100)}% semantic match
+                          </span>
+                        )}
+                        {job.combined_score && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            <Zap className="h-3 w-3 mr-1" />
+                            {Math.round(job.combined_score * 100)}% combined score
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-3">
                         {job.company_logo ? (
@@ -926,9 +940,16 @@ export default function Jobs() {
                       >
                         View Details
                       </button>
+                      <button
+                        onClick={() => loadSimilarJobs(job.id)}
+                        className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors flex items-center gap-1"
+                      >
+                        <Brain className="h-4 w-4" />
+                        Similar
+                      </button>
                     </div>
                   </div>
-                  {/* Right: Match Score and Hover Metrics */}
+                  {/* Right: Match Score and Hover Metrics - same as before */}
                   {match && (
                     <div className="ml-6 flex-shrink-0 flex flex-col items-end relative min-w-[200px]">
                       <div className="bg-gray-900 rounded-lg p-4 text-white text-center min-w-[160px]">
