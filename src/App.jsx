@@ -8,6 +8,7 @@ import { JobOpportunitiesProvider } from './hooks/useJobOpportunities';
 import { AppliedJobsProvider } from './hooks/useAppliedJobs';
 import { AssignmentsProvider } from './hooks/useAssignments';
 import JobMatchScoreInfo from './pages/JobMatchScoreInfo';
+import JobDetails from './pages/JobDetails';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -25,6 +26,10 @@ function AppRoutes() {
       <Route
         path="/dashboard/*"
         element={user ? <Dashboard /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/job/:jobId"
+        element={user ? <JobDetails /> : <Navigate to="/login" />}
       />
       <Route
         path="/"

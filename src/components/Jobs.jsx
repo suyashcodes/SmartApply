@@ -45,7 +45,6 @@ export default function Jobs() {
   const [savedJobs, setSavedJobs] = useState(new Set());
   const [jobMatches, setJobMatches] = useState({});
   const [userProfile, setUserProfile] = useState(null);
-  const [selectedJob, setSelectedJob] = useState(null);
   const [hoveredJob, setHoveredJob] = useState(null);
   const [similarJobs, setSimilarJobs] = useState({});
   const [personalizedRecommendations, setPersonalizedRecommendations] = useState([]);
@@ -639,18 +638,7 @@ export default function Jobs() {
                     {Math.round(rec.recommendation_score * 100)}% match
                   </span>
                   <button
-                    onClick={() => {
-                      const fullJob = { 
-                        id: rec.job_id, 
-                        title: rec.title, 
-                        company: rec.company,
-                        location: rec.location,
-                        experience_level: rec.experience_level,
-                        employment_type: rec.employment_type,
-                        industry: rec.industry
-                      };
-                      setSelectedJob(fullJob);
-                    }}
+                    onClick={() => navigate(`/job/${rec.job_id}`)}
                     className="text-purple-600 hover:text-purple-700 text-sm font-medium"
                   >
                     View →
@@ -849,7 +837,7 @@ export default function Jobs() {
                         )}
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
-                              onClick={() => setSelectedJob(job)}>
+                              onClick={() => navigate(`/job/${job.id}`)}>
                             {job.title}
                           </h3>
                           <p className="text-gray-600 font-medium">{job.company}</p>
@@ -935,7 +923,7 @@ export default function Jobs() {
                         Apply Now
                       </button>
                       <button 
-                        onClick={() => setSelectedJob(job)}
+                        onClick={() => navigate(`/job/${job.id}`)}
                         className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                       >
                         View Details
