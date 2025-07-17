@@ -27,9 +27,12 @@ import {
   ArrowLeft,
   Brain,
   Zap,
-  RefreshCw
+  RefreshCw,
+  MessageCircle,
+  Bot
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import JobChatbot from './JobChatbot';
 
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
@@ -48,6 +51,11 @@ export default function Jobs() {
   const [hoveredJob, setHoveredJob] = useState(null);
   const [similarJobs, setSimilarJobs] = useState({});
   const [personalizedRecommendations, setPersonalizedRecommendations] = useState([]);
+  
+  // Chatbot state
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [chatbotSelectedJob, setChatbotSelectedJob] = useState(null);
+  
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -377,6 +385,17 @@ export default function Jobs() {
     }
   };
 
+  // Chatbot functions
+  const openChatbotForJob = (job) => {
+    setChatbotSelectedJob(job);
+    setIsChatbotOpen(true);
+  };
+
+  const closeChatbot = () => {
+    setIsChatbotOpen(false);
+    setChatbotSelectedJob(null);
+  };
+
   const getMatchColor = (score) => {
     if (score >= 80) return 'text-green-600';
     if (score >= 60) return 'text-blue-600';
@@ -574,7 +593,7 @@ export default function Jobs() {
             </button>
             <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
               <Sparkles className="h-4 w-4 mr-1 inline" />
-              ASK ORION
+              ASK SmartBOT
             </button>
             <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
               APPLY NOW
@@ -637,12 +656,34 @@ export default function Jobs() {
                   <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
                     {Math.round(rec.recommendation_score * 100)}% match
                   </span>
-                  <button
-                    onClick={() => navigate(`/job/${rec.job_id}`)}
-                    className="text-purple-600 hover:text-purple-700 text-sm font-medium"
-                  >
-                    View →
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openChatbotForJob({
+                        id: rec.job_id,
+                        title: rec.title,
+                        company: rec.company,
+                        location: rec.location,
+                        description: rec.description,
+                        required_skills: rec.required_skills,
+                        nice_to_have_skills: rec.nice_to_have_skills,
+                        salary_min: rec.salary_min,
+                        salary_max: rec.salary_max,
+                        employment_type: rec.employment_type,
+                        experience_required: rec.experience_required,
+                        industry: rec.industry
+                      })}
+                      className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                    >
+                      <Bot className="w-3 h-3" />
+                      Ask
+                    </button>
+                    <button
+                      onClick={() => navigate(`/job/${rec.job_id}`)}
+                      className="text-purple-600 hover:text-purple-700 text-sm font-medium"
+                    >
+                      View →
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -929,6 +970,13 @@ export default function Jobs() {
                         View Details
                       </button>
                       <button
+                        onClick={() => openChatbotForJob(job)}
+                        className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1"
+                      >
+                        <Bot className="h-4 w-4" />
+                        Ask SmartBOT
+                      </button>
+                      <button
                         onClick={() => loadSimilarJobs(job.id)}
                         className="px-4 py-2 border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors flex items-center gap-1"
                       >
@@ -1037,6 +1085,26 @@ export default function Jobs() {
           })
         )}
       </div>
+
+      {/* Chatbot Component */}
+      <JobChatbot 
+        selectedJob={chatbotSelectedJob} 
+        onClose={closeChatbot}
+        isOpen={isChatbotOpen}
+      />
+
+      {/* Floating Chatbot Button - for general job questions */}
+      {!isChatbotOpen && (
+        <button
+          onClick={() => {
+            setChatbotSelectedJob(null);
+            setIsChatbotOpen(true);
+          }}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40 hover:scale-110"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
     </div>
   );
 }
