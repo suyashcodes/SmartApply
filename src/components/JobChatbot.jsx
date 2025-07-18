@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useResumes } from '../hooks/useResumes';
+import { supabase } from '../lib/supabase';
 import { 
   MessageCircle, 
   X, 
@@ -27,11 +28,36 @@ export default function JobChatbot({ selectedJob, onClose, isOpen }) {
   const [showResumeSelector, setShowResumeSelector] = useState(false);
   const [selectedResume, setSelectedResume] = useState(null);
   const [chatMode, setChatMode] = useState('general'); // 'general', 'cover-letter', 'resume-review', 'cold-email'
+  const [userProfile, setUserProfile] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  const fetchUserProfile = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!error && data) {
+        setUserProfile(data);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserProfile();
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -44,7 +70,7 @@ export default function JobChatbot({ selectedJob, onClose, isOpen }) {
         const welcomeMessage = {
           id: Date.now(),
           type: 'bot',
-          content: `Hi! I'm your AI job assistant. I can help you with "${selectedJob.title}" at ${selectedJob.company}. What would you like to do?`,
+          content: `Hi! I'm your AI job assistant. I can help you with "${selectedJob.title}" at ${selectedJob.company}. All documents I create will be personalized with your profile information for easy copy-paste! What would you like to do?`,
           timestamp: new Date(),
           suggestions: [
             {
@@ -63,9 +89,9 @@ export default function JobChatbot({ selectedJob, onClose, isOpen }) {
               icon: <Mail className="w-4 h-4" />
             },
             {
-              text: "Tell me more about this job",
-              action: "job-info",
-              icon: <Star className="w-4 h-4" />
+              text: "View my resumes",
+              action: "view-resumes",
+              icon: <FileText className="w-4 h-4" />
             }
           ]
         };
@@ -75,12 +101,12 @@ export default function JobChatbot({ selectedJob, onClose, isOpen }) {
         const welcomeMessage = {
           id: Date.now(),
           type: 'bot',
-          content: `Hi! I'm your AI job assistant. I'm here to help you with your job search. You can ask me about job applications, resume tips, interview preparation, or click on "Ask SmartBOT" for any specific job to get tailored advice!`,
+          content: `Hi! I'm your AI job assistant. I'm here to help you with your job search. I can create personalized cover letters and cold emails using your profile information. You can ask me about job applications, resume tips, interview preparation, or click on "Ask SmartBOT" for any specific job to get tailored advice!`,
           timestamp: new Date(),
           suggestions: [
             {
-              text: "Help me improve my resume",
-              action: "general-resume",
+              text: "View my resumes & profile info",
+              action: "view-resumes",
               icon: <FileText className="w-4 h-4" />
             },
             {
@@ -414,6 +440,53 @@ Ready to start applying to specific jobs? Use the "Ask SmartBOT" button on any j
     setIsLoading(false);
   };
 
+  const handleViewResumes = async () => {
+    setIsLoading(true);
+    
+    const userName = userProfile?.full_name || user?.email?.split('@')[0] || 'there';
+    const userEmail = user?.email || '[Email not available]';
+    const userPhone = userProfile?.phone || '[Phone not available]';
+    
+    let content = `**Your Profile Information**
+
+**Contact Details:**
+• **Name:** ${userProfile?.full_name || '[Please update your profile]'}
+• **Email:** ${userEmail}
+• **Phone:** ${userPhone}
+• **Experience:** ${userProfile?.experience_years || '[Not specified]'} years
+• **Industry:** ${userProfile?.industry || '[Not specified]'}
+• **Location:** ${userProfile?.location || '[Not specified]'}
+
+**Your Resumes:**
+`;
+
+    if (resumes.length > 0) {
+      resumes.forEach((resume, index) => {
+        content += `
+${index + 1}. **${resume.file_name}**
+   • Uploaded: ${new Date(resume.uploaded_at).toLocaleDateString()}
+`;
+      });
+      
+      content += `
+All generated documents will automatically include your contact information above for professional presentation.`;
+    } else {
+      content += `
+No resumes found. Please upload a resume first to get personalized job assistance.
+`;
+    }
+
+    const botMessage = {
+      id: Date.now() + 1,
+      type: 'bot',
+      content: content,
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, botMessage]);
+    setIsLoading(false);
+  };
+
   const handleResumeSelection = async (resume) => {
     setSelectedResume(resume);
     setShowResumeSelector(false);
@@ -457,116 +530,136 @@ Ready to start applying to specific jobs? Use the "Ask SmartBOT" button on any j
   };
 
   const generateCoverLetter = async (resume) => {
+    // Get user information from profile
+    const userName = userProfile?.full_name || user?.email?.split('@')[0] || '[Your Name]';
+    const userEmail = user?.email || '[Your Email]';
+    const userPhone = userProfile?.phone || '[Your Phone Number]';
+    const userAddress = userProfile?.location || '';
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
     // Simulate AI-generated cover letter based on available resume data
-    return `
-**Cover Letter for ${selectedJob.title} at ${selectedJob.company}**
+    return `${userName}
+${userEmail}
+${userPhone}
+${userAddress ? userAddress : ''}
+
+${currentDate}
 
 Dear Hiring Manager,
 
-I am writing to express my strong interest in the ${selectedJob.title} position at ${selectedJob.company}. Based on my qualifications outlined in my resume (${resume.file_name}), I am confident that I would be a valuable addition to your team.
+I am writing to express my strong interest in the ${selectedJob.title} position at ${selectedJob.company}. Based on my qualifications outlined in my resume, I am confident that I would be a valuable addition to your team.
 
-**Why I'm a great fit:**
-• My background aligns well with your requirements for ${selectedJob.title}
+**Why I'm the ideal candidate:**
+• My background aligns perfectly with your requirements for ${selectedJob.title}
 • I have relevant experience in ${selectedJob.required_skills?.slice(0, 3).map(s => s.name || s).join(', ') || 'the required technologies'}
-• I am eager to contribute to ${selectedJob.company}'s success and growth
+• I am eager to contribute to ${selectedJob.company}'s continued success and innovation
 
-**Key highlights from my background:**
-• Demonstrated professional experience in relevant roles
-• Strong technical and interpersonal skills
-• Proven ability to adapt and learn in dynamic environments
-• Commitment to delivering high-quality results
+**Key highlights from my professional experience:**
+• Demonstrated expertise in ${selectedJob.industry || 'the relevant industry'} with a proven track record
+• Strong technical and interpersonal skills that drive team collaboration
+• Proven ability to adapt quickly and excel in dynamic, fast-paced environments
+• Commitment to delivering high-quality results that exceed expectations
 
-I am excited about the opportunity to contribute to ${selectedJob.company} and would welcome the chance to discuss how my skills and experience can benefit your team. Please find my detailed qualifications in the attached resume.
+I am particularly drawn to ${selectedJob.company} because of your reputation for ${selectedJob.industry || 'innovation'} and commitment to excellence. I believe my passion for ${selectedJob.title} work and my dedication to continuous learning make me an excellent fit for your team.
 
-Best regards,
-[Your Name]
+I would welcome the opportunity to discuss how my skills and experience can contribute to ${selectedJob.company}'s objectives. Thank you for your time and consideration.
 
----
-*This cover letter was generated based on your resume "${resume.file_name}" and the job requirements. Feel free to customize it further!*
-
-**📎 Your Resume:** [View Resume](${resume.file_url})
-    `;
+Sincerely,
+${userName}`;
   };
 
   const generateResumeReview = async (resume) => {
     const requiredSkills = selectedJob.required_skills || [];
+    const userName = userProfile?.full_name || user?.email?.split('@')[0] || 'candidate';
+    const userExperience = userProfile?.experience_years || 'your';
+    const userIndustry = userProfile?.industry || selectedJob.industry;
     
-    return `
-**Resume Review for ${selectedJob.title} at ${selectedJob.company}**
+    return `**Personalized Resume Review for ${userName}**
+**Position:** ${selectedJob.title} at ${selectedJob.company}
 
-**📄 Resume File:** ${resume.file_name}
-**📅 Uploaded:** ${new Date(resume.uploaded_at).toLocaleDateString()}
+**Profile Analysis:**
+• **Experience Level:** ${userExperience} years in ${userIndustry || 'your field'}
+• **Target Role:** ${selectedJob.title}
+• **Industry Focus:** ${selectedJob.industry || 'Technology'}
 
-**✅ Strengths:**
-• You have provided a complete resume for this position
-• Your resume is available for review by hiring managers
-• File is properly formatted and accessible
+**Tailored Recommendations for Your ${selectedJob.title} Application:**
 
-**💡 General Recommendations for ${selectedJob.title}:**
+**1. Keywords & Skills Optimization:**
+• **Must Include:** ${requiredSkills.slice(0, 5).map(s => s.name || s).join(', ') || 'relevant technical skills'}
+• **Industry Terms:** Use language specific to ${selectedJob.industry || 'the target industry'}
+• **ATS Optimization:** Include exact phrases from the job description
+• **Skill Prioritization:** Lead with skills most relevant to ${selectedJob.title}
 
-**1. Keywords & Skills:**
-• Ensure your resume includes these key terms: ${requiredSkills.slice(0, 5).map(s => s.name || s).join(', ') || 'relevant technical skills'}
-• Match the job description language where possible
-• Highlight experience with specific technologies mentioned in the job posting
+**2. Experience Section Enhancement:**
+• **Quantify Achievements:** Use metrics that show impact (e.g., "Improved efficiency by 25%")
+• **Relevant Projects:** Highlight work similar to ${selectedJob.title} responsibilities
+• **Action Verbs:** Start bullet points with strong verbs (Led, Developed, Implemented)
+• **${selectedJob.employment_type} Experience:** Emphasize relevant work arrangement experience
 
-**2. Format & Structure:**
-• Use clear section headers (Experience, Education, Skills, etc.)
-• Include quantifiable achievements with numbers and metrics
-• Keep it to 1-2 pages maximum
-• Use consistent formatting throughout
+**3. Profile Summary Optimization:**
+• **Opening Line:** "${userName}, experienced ${selectedJob.title} professional with ${userExperience} years..."
+• **Core Competencies:** Align with ${selectedJob.company}'s needs
+• **Value Proposition:** What unique value do you bring to ${selectedJob.title}?
 
-**3. Content Optimization:**
-• Tailor your summary to emphasize ${selectedJob.title} experience
-• Use action verbs to start bullet points (Developed, Led, Achieved, etc.)
-• Include relevant projects or certifications
-• Show progression and growth in your career
+**4. ${selectedJob.company}-Specific Customization:**
+• **Company Research:** Mention ${selectedJob.company}'s recent achievements or values
+• **Culture Fit:** Show alignment with company culture and mission
+• **Industry Knowledge:** Demonstrate understanding of ${selectedJob.industry || 'their industry'} trends
 
-**4. Company-Specific Tips for ${selectedJob.company}:**
-• Research the company culture and values
-• Align your experience with their mission
-• Mention relevant industry experience if applicable
+**5. Technical Skills Section:**
+• **Priority Skills:** ${requiredSkills.slice(0, 3).map(s => s.name || s).join(', ') || 'Key technologies'} should be prominently featured
+• **Skill Levels:** Consider adding proficiency levels for key skills
+• **Certifications:** Include relevant certifications for ${selectedJob.title}
 
-**🔗 [View Your Current Resume](${resume.file_url})**
+**Next Steps:**
+1. Update your resume with these specific recommendations
+2. Customize your summary for ${selectedJob.company}
+3. Ensure all required skills for ${selectedJob.title} are clearly visible
+4. Have someone review for ${selectedJob.industry} terminology accuracy
 
-Would you like me to help you with a cover letter for this position or provide more specific advice?
-    `;
+Would you like me to help you with a cover letter for this position or provide more specific advice?`;
   };
 
   const generateColdEmail = async (resume) => {
-    return `
-**Cold Email for ${selectedJob.title} at ${selectedJob.company}**
+    // Get user information from profile
+    const userName = userProfile?.full_name || user?.email?.split('@')[0] || '[Your Name]';
+    const userEmail = user?.email || '[Your Email]';
+    const userPhone = userProfile?.phone || '[Your Phone Number]';
+    const userLinkedIn = userProfile?.linkedin_url || '';
+    const userExperience = userProfile?.experience_years || 'several years of';
 
-**Subject:** Experienced Professional Interested in ${selectedJob.title} Role
+    return `Subject: Experienced ${selectedJob.title} Professional - Interest in ${selectedJob.company} Opportunity
 
-Dear [Hiring Manager/Team],
+Dear Hiring Manager,
 
-I hope this email finds you well. My name is [Your Name], and I am a professional with relevant experience interested in the ${selectedJob.title} opportunity at ${selectedJob.company}.
+I hope this email finds you well. My name is ${userName}, and I am a professional with ${userExperience} experience interested in the ${selectedJob.title} opportunity at ${selectedJob.company}.
 
-I recently came across this position and was immediately drawn to the role because:
+I recently discovered your open position and was immediately drawn to the role because:
 
-• Your company's focus on ${selectedJob.industry || 'innovation'} aligns with my career goals
-• The ${selectedJob.title} position matches my professional background and interests
-• I'm particularly excited about ${selectedJob.company}'s mission and values
+• ${selectedJob.company}'s innovative approach to ${selectedJob.industry || 'the industry'} aligns perfectly with my career aspirations
+• The ${selectedJob.title} position matches my professional background and expertise
+• I'm particularly excited about contributing to ${selectedJob.company}'s mission and continued growth
 
-**Why I'm a great fit:**
-• Strong background in the required skill areas: ${selectedJob.required_skills?.slice(0, 3).map(s => s.name || s).join(', ') || 'relevant technologies'}
-• Experience working in ${selectedJob.employment_type || 'professional'} environments
-• Proven ability to contribute effectively to team success
+**Why I would be a valuable addition to your team:**
+• Strong expertise in ${selectedJob.required_skills?.slice(0, 3).map(s => s.name || s).join(', ') || 'relevant technologies and methodologies'}
+• ${userExperience} of progressive experience in ${selectedJob.employment_type?.replace('_', ' ') || 'professional'} environments
+• Proven track record of delivering results and contributing to team success
+• Passionate about ${selectedJob.industry || 'innovation'} and staying current with industry trends
 
-I've attached my resume for your review and would love the opportunity to discuss how I can contribute to ${selectedJob.company}'s continued success.
+I have attached my resume for your review and would be thrilled to discuss how my skills and experience can contribute to ${selectedJob.company}'s continued success. I am available for a conversation at your convenience.
 
-Thank you for your time and consideration.
+Thank you for your time and consideration. I look forward to hearing from you.
 
 Best regards,
-[Your Name]
-[Your Email]
-[Your Phone Number]
 
----
-*This email template was personalized based on your resume "${resume.file_name}". Remember to research the company and customize further before sending!*
-
-**📎 Your Resume:** [View Resume](${resume.file_url})
-    `;
+${userName}
+${userEmail}
+${userPhone}${userLinkedIn ? `
+LinkedIn: ${userLinkedIn}` : ''}`;
   };
 
   const handleSendMessage = async () => {
